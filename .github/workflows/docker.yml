@@ -23,3 +23,5 @@ jobs:
       - uses: docker/bake-action@v6
         with:
           push: true
+          variables: |
+            OWNER_NAME=${{ github.repository_owner }}
