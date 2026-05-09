@@ -1,8 +1,17 @@
 #result-image-placeholder {
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
   width: 100%;
   font-size: 2rem;
+}
+
+#result-image-placeholder:hover {
+  background-color: var(--bs-dark);
+}
+
+.Image {
+  justify-content: center;
 }
