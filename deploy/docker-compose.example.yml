@@ -14,25 +14,48 @@ x-tmpfs: &tmpfs
   tmpfs:
     size: 10485760 # 10M
 
+networks:
+  # gives gluetun a fixed address so Stash's scraperCDPPath config can target an IP
+  # Chrome's DevTools protocol rejects any request whose Host header isn't a raw IP or
+  # localhost, so the compose service name ("gluetun") doesn't work here even though DNS
+  # resolves it fine
+  gluetun_net:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
 services:
+  # one-shot: stash-s6 can't self-heal ownership on these dirs when forced fully
+  # rootless (user: 1000:1000, no PUID/PGID), so create+chown them here instead
+  # of requiring a manual mkdir/chown before first boot
+  init-stash-pip:
+    image: busybox
+    user: "0:0"
+    restart: "no"
+    command: sh -c "mkdir -p /pip-install/install /pip-install/cache && chown -R 1000:1000 /pip-install"
+    volumes:
+      - /home/stash/app/stash/pip:/pip-install:rw
   stash:
-     << : *user-defaults
-     container_name: stash
-     image: ghcr.io/feederbox826/stash-s6:develop
-     environment:
-       - HTTP_PROXY="http://gluetun:8888"
-       - FLARESOLVERR_URL="http://byparr:8191/v1"
-     volumes:
-       - /home/stash/app/stash/pip:/pip-install:rw
-       - /home/stash/app/stash/config:/config:rw
-       - << : *tmpfs
+    <<: *user-defaults
+    container_name: stash
+    image: ghcr.io/feederbox826/stash-s6:develop
+    depends_on:
+      init-stash-pip:
+        condition: service_completed_successfully
+    environment:
+      - HTTP_PROXY="http://gluetun:8888"
+      - FLARESOLVERR_URL="http://byparr:8191/v1"
+    volumes:
+      - /home/stash/app/stash/pip:/pip-install:rw
+      - /home/stash/app/stash/config:/config:rw
+      - <<: *tmpfs
   mongodb:
-    << : *user-defaults
+    <<: *user-defaults
     container_name: mongodb
     image: mongo:8
     volumes:
       - /home/stash/app/mongodb:/data/db:rw
-      - << : *tmpfs
+      - <<: *tmpfs
     command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
     ports:
       - 127.0.0.1:27017:27017
@@ -44,19 +67,27 @@ services:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
-    env_file: "gluetun.env"
+    env_file: "gluetun.env" # needs FIREWALL_INPUT_PORTS=9222, see gluetun.env.example
+    networks:
+      gluetun_net:
+        ipv4_address: 172.30.0.10
   cdp:
-    << : *user-defaults
+    <<: *user-defaults
     container_name: cdp
     image: docker.io/chromedp/headless-shell:latest
     network_mode: "service:gluetun"
+    shm_size: 512m # Docker's 64MB default /dev/shm is a well-known silent-crash cause for Chromium
+    command: ["--remote-allow-origins=*"] # otherwise Chrome rejects the DevTools WebSocket upgrade on Origin-header grounds
   scrape_ci:
-    << : *user-defaults
+    <<: *user-defaults
     container_name: scrape_ci
     image: ghcr.io/feederbox826/scrape-ci:latest
     env_file: "scrape_ci.env"
+    networks:
+      - default
+      - gluetun_net
   caddy:
-    << : *user-defaults
+    <<: *user-defaults
     container_name: caddy
     image: caddy:2
     ports:
@@ -67,14 +98,16 @@ services:
       - /home/stash/app/caddy/config:/config:rw
       - /home/stash/app/caddy/caddy:/etc/caddy:ro
   byparr:
-    << : *user-defaults
+    <<: *user-defaults
     container_name: byparr
     image: ghcr.io/thephaseless/byparr:latest
     read_only: false
+    shm_size: 512m # same silent-crash risk as cdp - byparr also drives a headless browser
     volumes:
       - /home/stash/app/byparr:/var/cache/uv:rw
+  # optional (no REDIS_URL set = no rate limiting / usage tracking), but recommended
   valkey:
-    << : *user-defaults
+    <<: *user-defaults
     container_name: valkey
     image: valkey/valkey:alpine
     volumes:
