@@ -16,7 +16,7 @@ export const checkKeyLimit = async (key: string): Promise<keyStatus> => {
   // add to redis counter
   const hasKey = !!limit
   if (hasKey) {
-    if (!process.env.REDIS_URL) return keyStatus.valid; // if no redis, skip rate limit
+    if (!client) return keyStatus.valid; // if no redis, skip rate limit
     client.incr(`usecount:${key}`);
     // daily ratelimit
     const dailyKey = `ratelimit:${day}:${key}`;
