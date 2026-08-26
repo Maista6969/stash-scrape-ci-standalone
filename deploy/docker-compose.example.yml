@@ -35,12 +35,23 @@ services:
     command: sh -c "mkdir -p /pip-install/install /pip-install/cache && chown -R 1000:1000 /pip-install"
     volumes:
       - /home/stash/app/stash/pip:/pip-install:rw
+  # seeds /config/requirements.txt with every Python package CommunityScrapers' scrapers are known to need
+  init-python-deps:
+    image: busybox
+    user: "0:0"
+    restart: "no"
+    command: sh -c "cp /baseline/requirements.txt /config/requirements.txt && chown 1000:1000 /config/requirements.txt"
+    volumes:
+      - /home/stash/app/stash/config:/config:rw
+      - ./repo/deploy/python-requirements-baseline.txt:/baseline/requirements.txt:ro
   stash:
     <<: *user-defaults
     container_name: stash
     image: ghcr.io/feederbox826/stash-s6:develop
     depends_on:
       init-stash-pip:
+        condition: service_completed_successfully
+      init-python-deps:
         condition: service_completed_successfully
     environment:
       - HTTP_PROXY="http://gluetun:8888"

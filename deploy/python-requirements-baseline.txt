@@ -1,0 +1,14 @@
+algoliasearch
+bs4
+cloudscraper
+lxml
+mechanicalsoup
+pystashlib
+requests
+requests-toolbelt
+stashapp-tools
+curl_cffi
+fastbencode
+free-proxy
+google-api-python-client
+pycountry
