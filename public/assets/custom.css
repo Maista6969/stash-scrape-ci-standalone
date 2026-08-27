@@ -15,3 +15,8 @@
 .Image {
   justify-content: center;
 }
+
+#result-details,
+#result-synopsis {
+  white-space: pre-line;
+}
