@@ -8,15 +8,12 @@ export interface partialJobResult {
 }
 
 export interface jobResult {
-  result: completeSceneResult;
+  result: cleanSceneResult;
   runnerInfo: runnerInfo;
   stashInfo: stashInfo;
   jobId: string; // nanoid generated id with limited alphabet
   logs: logEntry[];
 }
-
-export type stashTag = { id: string, name: string, endpoint: string };
-export type tag = { raw: string, sb: stashTag[] };
 
 export interface runnerInfo {
   scraperId?: string;
@@ -41,8 +38,8 @@ export interface sceneResult {
   urls: string[];
   performers: { name: string }[];
   studio: { name: string }[];
-  groups: { name: string }[]
-  movies: { name: string }[]
+  groups: { name: string }[];
+  movies: { name: string }[];
   tags: { name: string }[];
 }
 
@@ -60,19 +57,4 @@ export interface cleanSceneResult {
   groups: string[] | null;
   movies: string[] | null;
   tags: string[];
-}
-
-export interface completeSceneResult {
-  title: string;
-  code: string | null;
-  date: string | null;
-  director: string | null;
-  duration: string | null;
-  details: string | null;
-  urls: string[] | null;
-  performers: string[] | null;
-  studio: string | null;
-  groups: string[] | null;
-  movies: string[] | null;
-  tags: tag[];
 }

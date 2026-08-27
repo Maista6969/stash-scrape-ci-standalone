@@ -1,8 +1,7 @@
-// imports 
-import { connect, createIndex, addResult, getResult, getTagMappings, createApiKey, revokeApiKey } from "./db.js"
+// imports
+import { connect, createIndex, addResult, getResult, createApiKey, revokeApiKey } from "./db.js"
 import { StashApp } from "./stash-app.js"
 import { genJobID, helpText } from "./utils.js"
-import { createTagMappings } from "./populate_tags.js"
 import { keyStatus, checkKeyLimit, checkKeyValidity } from "./apikey.js"
 import 'dotenv/config'
 
@@ -13,7 +12,7 @@ import bodyParser from "@koa/bodyparser";
 import serve from 'koa-static';
 
 import Router from '@koa/router';
-import { cleanSceneResult, jobResult } from "../types/jobResult.js"
+import { jobResult } from "../types/jobResult.js"
 import { uploadImage } from "./b2.js"
 const router = new Router();
 
@@ -153,8 +152,6 @@ app.use(serve('public', { extensions: ['html'] }));
 connect()
   .then(() => createIndex())
   .then(() => console.log("Connected to database"))
-  .then(() => createTagMappings())
-  .then(() => console.log("Tag mappings populated"))
   .catch(err => {
     console.error("Failed to connect to database:", err)
     process.exit(1)
@@ -197,8 +194,6 @@ const getScrapeResult = async (type: string, url: string, rescrape = false): Pro
   }
   // get logs
   const logs = await stash.getLogs(startTime)
-  // replace tags with parsed tags
-  const parsedTags = await getTagMappings(result.result?.tags ?? [])
   // get package versions
   const scraperVersion = await stash.getPkgVersion(searchResult?.id)
   // replace image with CDN url
@@ -207,10 +202,7 @@ const getScrapeResult = async (type: string, url: string, rescrape = false): Pro
   const cachedResult: jobResult = {
     jobId,
     ...result,
-    result: {
-      ...result.result as cleanSceneResult,
-      tags: parsedTags,
-    },
+    result: result.result!,
     runnerInfo: {
       scraperId: searchResult?.id,
       scraperVersion,

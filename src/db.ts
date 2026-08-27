@@ -1,5 +1,4 @@
 import { MongoClient } from "mongodb";
-import { tag } from "../types/jobResult.js";
 import { genID } from "./utils.js"
 
 const uri = process.env.MONGODB_URI || "mongodb://mongodb:27017/stash-ci";
@@ -7,7 +6,6 @@ const client = new MongoClient(uri);
 
 const db = client.db();
 const sceneCollection = db.collection("scene");
-export const tagCollection = db.collection("tags");
 const apiKeyCollection = db.collection("apiKeys");
 
 export async function connect() {
@@ -20,8 +18,6 @@ export async function createIndex() {
   // create indexes for each collection=
   await sceneCollection.createIndex({ url: 1 });
   await sceneCollection.createIndex({ jobId: 1 }, { unique: true });
-  // tags index
-  await tagCollection.createIndex({ lookup: 1 }, { unique: true });
   // apikey
   await apiKeyCollection.createIndex({ apikey: 1 }, { unique: true });
 }
@@ -57,23 +53,6 @@ export const setLastScraperUpdate = async () => {
     { $set: { value: new Date().toISOString() } },
     { upsert: true }
   );
-}
-
-// tags
-// stores tag aliases
-export const getTagMappings = async (tags: String[]): Promise<tag[]> => {
-  // convert tags to lowercase
-  const lowerTags = [... new Set(tags.map(tag => tag.trim().toLowerCase()))];
-  const mappings: tag[] = [];
-  for (const tag of lowerTags) {
-    const match = await tagCollection.findOne({ lookup: tag });
-    if (match) {
-      mappings.push({ raw: tag, sb: [{ id: match.id, name: match.name, endpoint: "stashdb" }] });
-    } else {
-      mappings.push({ raw: tag, sb: [] });
-    }
-  }
-  return mappings;
 }
 
 // apikey
