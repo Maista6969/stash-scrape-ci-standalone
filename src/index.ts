@@ -1,8 +1,8 @@
 // imports
-import { connect, createIndex, addResult, getResult, createApiKey, revokeApiKey } from "./db.js"
+import { connect, createIndex, addResult, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes } from "./db.js"
 import { StashApp } from "./stash-app.js"
 import { genJobID, helpText } from "./utils.js"
-import { keyStatus, checkKeyLimit, checkKeyValidity } from "./apikey.js"
+import { keyStatus, checkKeyLimit, checkKeyValidity, getKeyUsage } from "./apikey.js"
 import 'dotenv/config'
 
 import Koa from "koa"
@@ -64,6 +64,19 @@ router.post("/api/admin/apikey", koaValidateAdmin, async (ctx) => {
   ctx.body = { apiKey, limit }
 })
 
+router.get("/api/admin/apikey", koaValidateAdmin, async (ctx) => {
+  const keys = await listApiKeys()
+  ctx.body = await Promise.all(keys.map(async (key) => ({
+    apikey: key.apikey,
+    note: key.note,
+    limit: key.limit,
+    createdAt: key.createdAt,
+    active: key.active,
+    revokedAt: key.revokedAt,
+    ...(await getKeyUsage(key.apikey))
+  })))
+})
+
 router.delete("/api/admin/apikey", koaValidateAdmin, async (ctx) => {
   const body = (ctx.request as any).body
   if (!body || !body.key) {
@@ -73,6 +86,34 @@ router.delete("/api/admin/apikey", koaValidateAdmin, async (ctx) => {
   }
   await revokeApiKey(body.key)
   ctx.body = 'API key revoked successfully'
+})
+
+router.get("/api/admin/scrapes", koaValidateAdmin, async (ctx) => {
+  const limit = Math.min(Number(ctx.query.limit) || 20, 100)
+  const scrapes = await listRecentScrapes(limit)
+  ctx.body = scrapes.map((doc: any) => ({
+    jobId: doc.jobId,
+    url: doc.url,
+    title: doc.result?.title ?? null,
+    scrapeType: doc.runnerInfo?.scrapeType,
+    date: doc.runnerInfo?.date
+  }))
+})
+
+router.get("/api/admin/scrapers", koaValidateAdmin, async (ctx) => {
+  const stash = new StashApp()
+  ctx.body = await stash.getInstalledScrapers()
+})
+
+router.post("/api/admin/apikey/reactivate", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  if (!body || !body.key) {
+    ctx.status = 400
+    ctx.body = 'API key is required to reactivate'
+    return
+  }
+  await reactivateApiKey(body.key)
+  ctx.body = 'API key reactivated successfully'
 })
 
 router.post("/api/update", koaValidate, async (ctx) => {
@@ -144,7 +185,7 @@ app.use(cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'OPTIONS']
 }));
-app.use(bodyParser());
+app.use(bodyParser({ parsedMethods: ['POST', 'PUT', 'PATCH', 'DELETE'] }));
 app.use(router.routes()).use(router.allowedMethods());
 app.use(serve('public', { extensions: ['html'] }));
 

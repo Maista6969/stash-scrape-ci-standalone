@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <title>API Key Admin</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        padding-top: 30px;
+      }
+      .apikey-cell {
+        font-family: var(--bs-font-monospace);
+        cursor: pointer;
+      }
+      .usage-exhausted {
+        color: var(--bs-danger);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-md-10">
+          <div class="card p-4">
+            <h5 class="card-title">Admin Key</h5>
+            <div class="input-group">
+              <input
+                id="admin-auth"
+                type="password"
+                placeholder="Admin Key"
+                class="form-control"
+                autocomplete="off"
+              />
+              <button id="load-keys" class="btn btn-primary">Load Keys</button>
+            </div>
+          </div>
+
+          <div class="card mt-4 p-4">
+            <h5 class="card-title">Create API Key</h5>
+            <form id="create-form" class="row g-2 align-items-end">
+              <div class="col-md-6">
+                <label for="create-note" class="form-label"
+                  >Note / Username</label
+                >
+                <input
+                  id="create-note"
+                  type="text"
+                  placeholder="e.g. backer's username"
+                  class="form-control"
+                  required
+                  autocomplete="off"
+                />
+              </div>
+              <div class="col-md-3">
+                <label for="create-limit" class="form-label">Daily Limit</label>
+                <input
+                  id="create-limit"
+                  type="number"
+                  placeholder="200"
+                  class="form-control"
+                  min="1"
+                />
+              </div>
+              <div class="col-md-3">
+                <button type="submit" class="btn btn-success w-100">
+                  Create Key
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card mt-4 p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0">API Keys</h6>
+              <button id="refresh-keys" class="btn btn-sm btn-secondary">
+                Refresh
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Note / Username</th>
+                    <th>API Key</th>
+                    <th>Status</th>
+                    <th>Daily Limit</th>
+                    <th>Today</th>
+                    <th>Total Uses</th>
+                    <th>Created</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="key-table-body">
+                  <tr>
+                    <td colspan="8" class="text-secondary">
+                      Enter the admin key and click "Load Keys".
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card mt-4 p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0">Recent Scrapes</h6>
+              <button id="refresh-scrapes" class="btn btn-sm btn-secondary">
+                Refresh
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>URL</th>
+                    <th>Date</th>
+                    <th>Job ID</th>
+                  </tr>
+                </thead>
+                <tbody id="scrape-table-body">
+                  <tr>
+                    <td colspan="5" class="text-secondary">
+                      Enter the admin key and click "Load Keys".
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card mt-4 p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0">Installed Scrapers</h6>
+              <button id="refresh-scrapers" class="btn btn-sm btn-secondary">
+                Refresh
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Package ID</th>
+                    <th>Version</th>
+                    <th
+                      title="Release date of the installed version, per the CommunityScrapers index -- Stash doesn't track when a package was installed on this instance"
+                    >
+                      Package Date
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="scraper-table-body">
+                  <tr>
+                    <td colspan="3" class="text-secondary">
+                      Enter the admin key and click "Load Keys".
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const baseURL = window.location.origin;
+      const apiURL = `${baseURL}/api/admin/apikey`;
+      const scrapesURL = `${baseURL}/api/admin/scrapes`;
+      const scrapersURL = `${baseURL}/api/admin/scrapers`;
+
+      const authInput = document.getElementById("admin-auth");
+      const tableBody = document.getElementById("key-table-body");
+      const scrapeTableBody = document.getElementById("scrape-table-body");
+      const scraperTableBody = document.getElementById("scraper-table-body");
+
+      function formatDate(iso) {
+        if (!iso) return "";
+        return iso.replace("T", " ").slice(0, 19);
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const storedAuth = localStorage.getItem("auth");
+        if (storedAuth) {
+          authInput.value = storedAuth;
+          loadKeys();
+          loadScrapes();
+          loadScrapers();
+        }
+
+        document.getElementById("load-keys").addEventListener("click", () => {
+          const auth = authInput.value.trim();
+          if (!auth) {
+            alert("Admin key is required.");
+            return;
+          }
+          localStorage.setItem("auth", auth);
+          loadKeys();
+          loadScrapes();
+          loadScrapers();
+        });
+
+        document
+          .getElementById("refresh-keys")
+          .addEventListener("click", loadKeys);
+        document
+          .getElementById("refresh-scrapes")
+          .addEventListener("click", loadScrapes);
+        document
+          .getElementById("refresh-scrapers")
+          .addEventListener("click", loadScrapers);
+
+        document
+          .getElementById("create-form")
+          .addEventListener("submit", (event) => {
+            event.preventDefault();
+            createKey();
+          });
+      });
+
+      function getAuth() {
+        return authInput.value.trim() || localStorage.getItem("auth");
+      }
+
+      function loadKeys() {
+        const auth = getAuth();
+        if (!auth) {
+          alert("Admin key is required.");
+          return;
+        }
+        fetch(`${apiURL}?auth=${encodeURIComponent(auth)}`)
+          .then((res) => {
+            if (!res.ok)
+              throw new Error("Failed to load API keys. Check your admin key.");
+            return res.json();
+          })
+          .then(renderKeys)
+          .catch((err) => alert(err.message));
+      }
+
+      function renderKeys(keys) {
+        tableBody.innerHTML = "";
+        if (!keys.length) {
+          tableBody.innerHTML =
+            '<tr><td colspan="8" class="text-secondary">No API keys yet.</td></tr>';
+          return;
+        }
+        for (const key of keys) {
+          const row = document.createElement("tr");
+
+          const noteCell = document.createElement("td");
+          noteCell.textContent = key.note;
+          row.appendChild(noteCell);
+
+          const keyCell = document.createElement("td");
+          keyCell.className = "apikey-cell";
+          keyCell.textContent = key.apikey;
+          keyCell.title = "Click to copy";
+          keyCell.addEventListener("click", () => {
+            navigator.clipboard.writeText(key.apikey);
+          });
+          row.appendChild(keyCell);
+
+          const statusCell = document.createElement("td");
+          const statusBadge = document.createElement("span");
+          if (key.active) {
+            statusBadge.className = "badge text-bg-success";
+            statusBadge.textContent = "Active";
+          } else {
+            statusBadge.className = "badge text-bg-danger";
+            statusBadge.textContent = "Revoked";
+            statusBadge.title = formatDate(key.revokedAt);
+          }
+          statusCell.appendChild(statusBadge);
+          row.appendChild(statusCell);
+
+          const limitCell = document.createElement("td");
+          limitCell.textContent = key.limit;
+          row.appendChild(limitCell);
+
+          const todayCell = document.createElement("td");
+          todayCell.textContent = `${key.today} / ${key.limit}`;
+          if (key.today >= key.limit)
+            todayCell.classList.add("usage-exhausted");
+          row.appendChild(todayCell);
+
+          const totalCell = document.createElement("td");
+          totalCell.textContent = key.total;
+          row.appendChild(totalCell);
+
+          const createdCell = document.createElement("td");
+          createdCell.textContent = formatDate(key.createdAt);
+          row.appendChild(createdCell);
+
+          const actionCell = document.createElement("td");
+          const actionBtn = document.createElement("button");
+          if (key.active) {
+            actionBtn.className = "btn btn-sm btn-outline-danger";
+            actionBtn.textContent = "Revoke";
+            actionBtn.addEventListener("click", () =>
+              revokeKey(key.apikey, key.note),
+            );
+          } else {
+            actionBtn.className = "btn btn-sm btn-outline-success";
+            actionBtn.textContent = "Reactivate";
+            actionBtn.addEventListener("click", () =>
+              reactivateKey(key.apikey, key.note),
+            );
+          }
+          actionCell.appendChild(actionBtn);
+          row.appendChild(actionCell);
+
+          tableBody.appendChild(row);
+        }
+      }
+
+      function loadScrapes() {
+        const auth = getAuth();
+        if (!auth) return;
+        fetch(`${scrapesURL}?auth=${encodeURIComponent(auth)}`)
+          .then((res) => {
+            if (!res.ok)
+              throw new Error(
+                "Failed to load recent scrapes. Check your admin key.",
+              );
+            return res.json();
+          })
+          .then(renderScrapes)
+          .catch((err) => alert(err.message));
+      }
+
+      function renderScrapes(scrapes) {
+        scrapeTableBody.innerHTML = "";
+        if (!scrapes.length) {
+          scrapeTableBody.innerHTML =
+            '<tr><td colspan="5" class="text-secondary">No scrapes yet.</td></tr>';
+          return;
+        }
+        for (const scrape of scrapes) {
+          const row = document.createElement("tr");
+
+          const titleCell = document.createElement("td");
+          titleCell.textContent = scrape.title || "(untitled)";
+          row.appendChild(titleCell);
+
+          const typeCell = document.createElement("td");
+          typeCell.textContent = scrape.scrapeType || "";
+          row.appendChild(typeCell);
+
+          const urlCell = document.createElement("td");
+          const urlLink = document.createElement("a");
+          urlLink.href = scrape.url;
+          urlLink.textContent = scrape.url;
+          urlLink.target = "_blank";
+          urlLink.rel = "noopener noreferrer";
+          urlLink.className = "text-truncate d-inline-block";
+          urlLink.style.maxWidth = "300px";
+          urlCell.appendChild(urlLink);
+          row.appendChild(urlCell);
+
+          const dateCell = document.createElement("td");
+          dateCell.textContent = formatDate(scrape.date);
+          row.appendChild(dateCell);
+
+          const jobIdCell = document.createElement("td");
+          const jobIdLink = document.createElement("a");
+          jobIdLink.href = `${baseURL}/${scrape.scrapeType}?id=${scrape.jobId}`;
+          jobIdLink.textContent = scrape.jobId;
+          jobIdLink.target = "_blank";
+          jobIdLink.rel = "noopener noreferrer";
+          jobIdCell.appendChild(jobIdLink);
+          row.appendChild(jobIdCell);
+
+          scrapeTableBody.appendChild(row);
+        }
+      }
+
+      function loadScrapers() {
+        const auth = getAuth();
+        if (!auth) return;
+        fetch(`${scrapersURL}?auth=${encodeURIComponent(auth)}`)
+          .then((res) => {
+            if (!res.ok)
+              throw new Error(
+                "Failed to load installed scrapers. Check your admin key.",
+              );
+            return res.json();
+          })
+          .then(renderScrapers)
+          .catch((err) => alert(err.message));
+      }
+
+      function renderScrapers(scrapers) {
+        scraperTableBody.innerHTML = "";
+        if (!scrapers.length) {
+          scraperTableBody.innerHTML =
+            '<tr><td colspan="3" class="text-secondary">No scrapers installed.</td></tr>';
+          return;
+        }
+        scrapers.sort((a, b) => a.package_id.localeCompare(b.package_id));
+        for (const scraper of scrapers) {
+          const row = document.createElement("tr");
+
+          const idCell = document.createElement("td");
+          idCell.textContent = scraper.package_id;
+          row.appendChild(idCell);
+
+          const versionCell = document.createElement("td");
+          versionCell.className = "apikey-cell";
+          versionCell.textContent = scraper.version;
+          row.appendChild(versionCell);
+
+          const dateCell = document.createElement("td");
+          dateCell.textContent = formatDate(scraper.date);
+          row.appendChild(dateCell);
+
+          scraperTableBody.appendChild(row);
+        }
+      }
+
+      function createKey() {
+        const auth = getAuth();
+        if (!auth) {
+          alert("Admin key is required.");
+          return;
+        }
+        const note = document.getElementById("create-note").value.trim();
+        const limitValue = document.getElementById("create-limit").value.trim();
+        if (!note) {
+          alert("Note / username is required.");
+          return;
+        }
+        const data = { auth, note };
+        if (limitValue) data.limit = Number(limitValue);
+
+        fetch(apiURL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to create API key.");
+            return res.json();
+          })
+          .then(() => {
+            document.getElementById("create-form").reset();
+            loadKeys();
+          })
+          .catch((err) => alert(err.message));
+      }
+
+      function revokeKey(apikey, note) {
+        if (
+          !confirm(`Revoke API key for "${note}"? It can be reactivated later.`)
+        )
+          return;
+        const auth = getAuth();
+        fetch(apiURL, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ auth, key: apikey }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to revoke API key.");
+            loadKeys();
+          })
+          .catch((err) => alert(err.message));
+      }
+
+      function reactivateKey(apikey, note) {
+        if (!confirm(`Reactivate API key for "${note}"?`)) return;
+        const auth = getAuth();
+        fetch(`${apiURL}/reactivate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ auth, key: apikey }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error("Failed to reactivate API key.");
+            loadKeys();
+          })
+          .catch((err) => alert(err.message));
+      }
+    </script>
+  </body>
+</html>

@@ -35,3 +35,12 @@ export const checkKeyValidity = async (key: string): Promise<boolean> => {
   const limit = await getKeyLimit(key);
   return !!limit
 }
+
+export const getKeyUsage = async (key: string): Promise<{ total: number, today: number }> => {
+  if (!client) return { total: 0, today: 0 };
+  const [total, today] = await Promise.all([
+    client.get(`usecount:${key}`),
+    client.get(`ratelimit:${day}:${key}`),
+  ]);
+  return { total: Number(total) || 0, today: Number(today) || 0 };
+}

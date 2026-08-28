@@ -34,6 +34,14 @@ export async function addResult(cachedResult: any, url: string) {
   });
 }
 
+export async function listRecentScrapes(limit: number = 20) {
+  return sceneCollection.find()
+    .project({ url: 1, jobId: 1, "result.title": 1, "runnerInfo.scrapeType": 1, "runnerInfo.date": 1 })
+    .sort({ _id: -1 })
+    .limit(limit)
+    .toArray();
+}
+
 // db structure
 // maintain seperate collection for each entity type
 // performer, scene, gallery, image, group
@@ -59,15 +67,24 @@ export const setLastScraperUpdate = async () => {
 export const createApiKey = async (note: string, limit: number = 200): Promise<string> => {
   const apikey = `ssci_${genID(32)}`
   // store in db with note
-  apiKeyCollection.insertOne({ apikey, note, createdAt: new Date(), limit });
+  apiKeyCollection.insertOne({ apikey, note, createdAt: new Date(), limit, active: true, revokedAt: null });
   return apikey;
 }
 
 export const validateApiKey = async (key: string): Promise<number> => {
   const match = await apiKeyCollection.findOne({ apikey: key });
-  return match?.limit ?? 0;
+  return match?.active ? match.limit ?? 0 : 0;
 }
 
+export const listApiKeys = async (): Promise<{ apikey: string, note: string, limit: number, createdAt: Date, active: boolean, revokedAt: Date | null }[]> => {
+  return apiKeyCollection.find().sort({ createdAt: -1 }).toArray() as any;
+}
+
+// revoke/reactivate keep the document (and its usage history) around instead of deleting it
 export const revokeApiKey = async (key: string): Promise<void> => {
-  await apiKeyCollection.deleteOne({ apikey: key });
+  await apiKeyCollection.updateOne({ apikey: key }, { $set: { active: false, revokedAt: new Date() } });
+}
+
+export const reactivateApiKey = async (key: string): Promise<void> => {
+  await apiKeyCollection.updateOne({ apikey: key }, { $set: { active: true, revokedAt: null } });
 }
