@@ -16,7 +16,6 @@
   justify-content: center;
 }
 
-#result-details,
-#result-synopsis {
+#result-details {
   white-space: pre-line;
 }

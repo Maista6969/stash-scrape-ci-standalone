@@ -42,11 +42,6 @@ export async function listRecentScrapes(limit: number = 20) {
     .toArray();
 }
 
-// db structure
-// maintain seperate collection for each entity type
-// performer, scene, gallery, image, group
-// index by URL and jobId
-
 // config
 // stores scraperLastUpdate timestamp
 export const configCollection = db.collection("config");

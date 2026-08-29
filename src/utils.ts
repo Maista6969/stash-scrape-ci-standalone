@@ -1,19 +1,3 @@
-// scrape types
-export type ScrapeTypeTypings = string & [
-  'performer',
-  'scene',
-  'gallery',
-  'image',
-  'group'
-]
-export const ScrapeTypeArr = [
-  'performer',
-  'scene',
-  'gallery',
-  'image',
-  'group'
-]
-
 // help text
 export const helpText = `
 scrape-ci-standalone
