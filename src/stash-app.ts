@@ -2,7 +2,7 @@ import { getLastScraperUpdate, setLastScraperUpdate } from "./db.js"
 import { scraperSearch } from "./scraper-index.js"
 import { installedPackage, logEntry } from "../types/stashapp.js"
 import axios from "axios"
-import { sceneResult, cleanSceneResult, stashInfo, partialJobResult } from "../types/jobResult.js"
+import { sceneResult, stashInfo, partialJobResult } from "../types/jobResult.js"
 import crypto from "crypto"
 
 export class StashApp {
@@ -117,9 +117,9 @@ export class StashApp {
     migrate(input: { backupPath: "/config/${crypto.randomBytes(16).toString("hex")}-migration.sqlite" })
   }`)
 
-  scrape = (url: string): Promise<cleanSceneResult> =>
+  scrape = (url: string): Promise<sceneResult> =>
     this.callGQL(sceneQuery, { url })
-      .then(data => cleanScrapeResult(data.scrapeSceneURL))
+      .then(data => data.scrapeSceneURL)
 
   async startScrape(url: string): Promise<partialJobResult> {
     const stashInfo = await this.getStashInfo()
@@ -145,30 +145,6 @@ export class StashApp {
   urlSeachScrapers = async (url: string) => scraperSearch(url, this)
 }
 
-// generic helpers
-function cleanScrapeResult(result: sceneResult): cleanSceneResult {
-  const cleaned: Record<string, string | null | string[]> = {}
-  for (const [key, value] of Object.entries(result)) {
-    if (value == null) cleaned[key] = null
-    else if (typeof value == 'string') cleaned[key] = value
-    else if (Array.isArray(value)) {
-      // if array of objects, map name out, otherwise leave intact
-      if (typeof value[0] == 'string') {
-        // leave as is
-        cleaned[key] = value
-      } else if (typeof value[0] === 'object') {
-        // if array of objects, map name out
-        cleaned[key] = value.map(item => item?.name)
-      }
-    }
-    else if (value?.name) {
-      // if object with name, just return name
-      cleaned[key] = value.name
-    }
-  }
-  return cleaned as unknown as cleanSceneResult
-}
-
 // get chrome useragent
 const getChromeUA = (): Promise<string> =>
   axios.get("https://jnrbsn.github.io/user-agents/user-agents.json")
@@ -186,7 +162,8 @@ const sceneQuery = `query ($url: String!) {
     details
     urls
     image
-    performers { name } studio { name }
+    performers { name gender }
+    studio { name parent { name } }
     groups { name } movies { name }
     tags { name }
   }}`

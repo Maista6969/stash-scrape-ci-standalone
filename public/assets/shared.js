@@ -70,11 +70,11 @@ function replaceShared(data) {
   const tagContainer = document.getElementById("tag-list");
   if (data.result.tags.length) {
     document.getElementById("tag-placeholder").remove();
-    for (const tagName of data.result.tags) {
+    for (const tag of data.result.tags) {
       const newTagLi = document.createElement("li");
       const newTagSpan = document.createElement("span");
       newTagSpan.classList = "tag-item badge bg-none";
-      newTagSpan.textContent = tagName;
+      newTagSpan.textContent = tag.name;
       newTagLi.appendChild(newTagSpan);
       tagContainer.appendChild(newTagLi);
     }

@@ -1,14 +1,14 @@
 import { logEntry } from "./stashapp.js";
 
 export interface partialJobResult {
-  result?: cleanSceneResult;
+  result?: sceneResult;
   error?: string;
   runnerInfo: runnerInfo;
   stashInfo: stashInfo;
 }
 
 export interface jobResult {
-  result: cleanSceneResult;
+  result: sceneResult;
   runnerInfo: runnerInfo;
   stashInfo: stashInfo;
   jobId: string; // nanoid generated id with limited alphabet
@@ -28,22 +28,9 @@ export interface stashInfo {
   hash: string;
 }
 
+// mirrors Stash's own ScrapedScene shape (relational fields stay as
+// objects, e.g. `{ name }`), rather than flattening them to strings
 export interface sceneResult {
-  title: string;
-  code: string;
-  date: string;
-  director: string;
-  duration: string;
-  details: string;
-  urls: string[];
-  performers: { name: string }[];
-  studio: { name: string }[];
-  groups: { name: string }[];
-  movies: { name: string }[];
-  tags: { name: string }[];
-}
-
-export interface cleanSceneResult {
   title: string;
   code: string | null;
   date: string | null;
@@ -52,9 +39,9 @@ export interface cleanSceneResult {
   details: string | null;
   image: string | null;
   urls: string[] | null;
-  performers: string[] | null;
-  studio: string | null;
-  groups: string[] | null;
-  movies: string[] | null;
-  tags: string[];
+  performers: { name: string; gender: string | null }[] | null;
+  studio: { name: string; parent: { name: string } | null } | null;
+  groups: { name: string }[] | null;
+  movies: { name: string }[] | null;
+  tags: { name: string }[] | null;
 }
