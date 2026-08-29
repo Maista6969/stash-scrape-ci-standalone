@@ -1,7 +1,7 @@
 // imports
-import { connect, createIndex, addResult, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes } from "./db.js"
+import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes } from "./db.js"
 import { StashApp } from "./stash-app.js"
-import { genJobID, helpText } from "./utils.js"
+import { helpText } from "./utils.js"
 import { keyStatus, checkKeyLimit, checkKeyValidity, getKeyUsage } from "./apikey.js"
 import 'dotenv/config'
 
@@ -12,8 +12,8 @@ import bodyParser from "@koa/bodyparser";
 import serve from 'koa-static';
 
 import Router from '@koa/router';
-import { jobResult } from "../types/jobResult.js"
-import { uploadImage } from "./b2.js"
+import { getScrapeResult } from "./scrape.js"
+import { verifyDiscordSignature, handleInteraction } from "./discord.js"
 const router = new Router();
 
 // apikey validatorv
@@ -181,6 +181,21 @@ router.post("/api/scrape", koaValidate, async (ctx) => {
   ctx.body = body
 })
 
+// Discord slash-command interactions (see src/discord.ts)
+router.post("/interactions", async (ctx) => {
+  const publicKey = process.env.DISCORD_PUBLIC_KEY
+  const signature = ctx.headers['x-signature-ed25519'] as string
+  const timestamp = ctx.headers['x-signature-timestamp'] as string
+  const rawBody = (ctx.request as any).rawBody
+  if (!publicKey || !signature || !timestamp || !rawBody || !await verifyDiscordSignature(publicKey, timestamp, rawBody, signature)) {
+    ctx.status = 401
+    return
+  }
+  const { status, json } = await handleInteraction((ctx.request as any).body)
+  ctx.status = status
+  if (json) ctx.body = json
+})
+
 app.use(cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'OPTIONS']
@@ -205,54 +220,3 @@ app.listen(process.env.PORT || 3000, () => {
 process.on('SIGINT', function() {
   process.exit()
 });
-
-// helper to get scrape results
-const getScrapeResult = async (type: string, url: string, rescrape = false): Promise<{ status: number, body: Object | string }> => {
-  // only support scenes for now
-  if (type !== 'scene') {
-    return { status: 400, body: { error: 'Invalid scrapeType. Valid types are: scene' } }
-  }
-  // try finding existing result first
-  const existingResult = await getResult(url)
-  if (!rescrape && existingResult) {
-    return { status: 200, body: existingResult }
-  }
-  // set up stash instance
-  const stash = new StashApp()
-  const searchResult = await stash.urlSeachScrapers(url)
-  if ("error" in searchResult) {
-    return { status: 422, body: searchResult }
-  }
-  const jobId = genJobID()
-  // check update packages
-  await stash.checkUpdatePackages()
-  // set start time
-  const startTime = new Date()
-  const result = await stash.startScrape(url)
-  // if error, return
-  if (result.error) {
-    return { status: 500, body: result }
-  }
-  // get logs
-  const logs = await stash.getLogs(startTime)
-  // get package versions
-  const scraperVersion = await stash.getPkgVersion(searchResult?.id)
-  // replace image with CDN url
-  const imageURL = await uploadImage(result.result?.image ?? "", jobId)
-  if (imageURL) result.result!.image = imageURL
-  const cachedResult: jobResult = {
-    jobId,
-    ...result,
-    result: result.result!,
-    runnerInfo: {
-      scraperId: searchResult?.id,
-      scraperVersion,
-      ...result.runnerInfo
-    },
-    stashInfo: result.stashInfo,
-    logs,
-  }
-  // insert
-  addResult(cachedResult, url)
-  return { status: 200, body: cachedResult }
-}

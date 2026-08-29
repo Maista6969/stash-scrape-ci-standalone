@@ -18,7 +18,7 @@ function replaceShared(data) {
   setUrl("scrape-url", data.runnerInfo.url);
   setUrl(
     "job-id",
-    `https://scrape.feederbox.cc/${data.runnerInfo.scrapeType}?id=${data.jobId}`,
+    `${window.location.origin}/${data.runnerInfo.scrapeType}?id=${data.jobId}`,
     data.jobId,
   );
   // manual replacements
