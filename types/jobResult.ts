@@ -23,9 +23,13 @@ export interface runnerInfo {
   date: string; // ISO date string
 }
 
+// matches the shape of Stash's `{ version { version hash } }` GraphQL query
+// (see getStashInfo in stash-app.ts), not a flat { version, hash }
 export interface stashInfo {
-  version: string;
-  hash: string;
+  version: {
+    version: string;
+    hash: string;
+  };
 }
 
 // mirrors Stash's own ScrapedScene shape (relational fields stay as

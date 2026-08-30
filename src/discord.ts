@@ -9,15 +9,9 @@ const ALLOWED_ROLES = (process.env.DISCORD_ALLOWED_ROLES || "")
   .map(role => role.trim())
   .filter(Boolean)
 
-const hexToBytes = (hex: string): Uint8Array => {
-  const bytes = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
-  return bytes
-}
-
 export const verifyDiscordSignature = async (publicKeyHex: string, timestamp: string, body: string, signatureHex: string): Promise<boolean> => {
-  const key = await webcrypto.subtle.importKey('raw', hexToBytes(publicKeyHex), { name: 'ed25519' }, false, ['verify'])
-  return webcrypto.subtle.verify('ed25519', key, hexToBytes(signatureHex), new TextEncoder().encode(timestamp + body))
+  const key = await webcrypto.subtle.importKey('raw', Buffer.from(publicKeyHex, 'hex'), { name: 'ed25519' }, false, ['verify'])
+  return webcrypto.subtle.verify('ed25519', key, Buffer.from(signatureHex, 'hex'), Buffer.from(timestamp + body, 'utf-8'))
 }
 
 const followUpDeferred = (applicationId: string, token: string, body: object) =>
