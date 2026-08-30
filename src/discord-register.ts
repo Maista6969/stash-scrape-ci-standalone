@@ -17,6 +17,11 @@ const commands = [
       { name: "url", description: "The URL to scrape.", type: 3, required: true },
     ],
   },
+  {
+    name: "update_scrapers",
+    description: "Update all scrapers and run database migration.",
+    options: [],
+  },
 ]
 
 axios.put(`https://discord.com/api/v10/applications/${DISCORD_APPLICATION_ID}/commands`, commands, {
