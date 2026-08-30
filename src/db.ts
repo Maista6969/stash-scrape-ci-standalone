@@ -20,6 +20,7 @@ export async function createIndex() {
   await sceneCollection.createIndex({ jobId: 1 }, { unique: true });
   // apikey
   await apiKeyCollection.createIndex({ apikey: 1 }, { unique: true });
+  await apiKeyCollection.createIndex({ discordUserId: 1 }, { unique: true, sparse: true });
 }
 
 export async function getResult(lookup: string) {
@@ -59,16 +60,25 @@ export const setLastScraperUpdate = async () => {
 }
 
 // apikey
-export const createApiKey = async (note: string, limit: number = 200): Promise<string> => {
+export const createApiKey = async (note: string, limit: number = 200, discordUserId?: string): Promise<string> => {
   const apikey = `ssci_${genID(32)}`
   // store in db with note
-  apiKeyCollection.insertOne({ apikey, note, createdAt: new Date(), limit, active: true, revokedAt: null });
+  await apiKeyCollection.insertOne({
+    apikey, note, createdAt: new Date(), limit, active: true, revokedAt: null,
+    ...(discordUserId ? { discordUserId } : {}),
+  });
   return apikey;
 }
 
 export const validateApiKey = async (key: string): Promise<number> => {
   const match = await apiKeyCollection.findOne({ apikey: key });
   return match?.active ? match.limit ?? 0 : 0;
+}
+
+// self-serve keys provisioned via the Discord /scrape_auth command
+export const getApiKeyByDiscordUser = async (discordUserId: string): Promise<{ apikey: string, limit: number, active: boolean } | null> => {
+  const match = await apiKeyCollection.findOne({ discordUserId });
+  return match ? { apikey: match.apikey, limit: match.limit, active: match.active } : null;
 }
 
 export const listApiKeys = async (): Promise<{ apikey: string, note: string, limit: number, createdAt: Date, active: boolean, revokedAt: Date | null }[]> => {

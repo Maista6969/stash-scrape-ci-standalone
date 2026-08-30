@@ -22,6 +22,11 @@ const commands = [
     description: "Update all scrapers and run database migration.",
     options: [],
   },
+  {
+    name: "scrape_auth",
+    description: "Get your personal scrape-ci API key (300 scrapes/day).",
+    options: [],
+  },
 ]
 
 axios.put(`https://discord.com/api/v10/applications/${DISCORD_APPLICATION_ID}/commands`, commands, {
