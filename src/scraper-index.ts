@@ -49,7 +49,7 @@ async function installSharedDependencies(
 export async function scraperSearch(
   url: string,
   stash: StashApp,
-): Promise<{ error: string } | { success: string; id: string }> {
+): Promise<{ error: string } | { success: string; id: string; name: string }> {
   // search in CommunityScrapers
   const matchedScrapers = await searchScrapers(url);
   // if no results, return empty array
@@ -61,6 +61,9 @@ export async function scraperSearch(
   const hasExistingScrapers = matchedScrapers
     .map(getScraperId)
     .filter((id) => existingScrapers.includes(id));
+  const nameForId = (id: string): string =>
+    matchedScrapers.find((scraper) => getScraperId(scraper) === id)?.name ??
+    id;
   // if no existing and only one matched, install it
   if (hasExistingScrapers.length === 0 && matchedScrapers.length === 1) {
     const scraper = matchedScrapers[0];
@@ -72,6 +75,7 @@ export async function scraperSearch(
     return {
       success: `Scraper ${scraperId} installed successfully.`,
       id: scraperId,
+      name: scraper.name,
     };
   } else if (matchedScrapers.length > 1 && hasExistingScrapers.length === 0) {
     // if multiple, don't install
@@ -84,11 +88,13 @@ export async function scraperSearch(
     return {
       success: `Scraper ${hasExistingScrapers[0]} already installed.`,
       id: hasExistingScrapers[0],
+      name: nameForId(hasExistingScrapers[0]),
     };
   } else {
     return {
       success: "Multiple scrapers already installed",
       id: hasExistingScrapers[1],
+      name: nameForId(hasExistingScrapers[1]),
     };
   }
 }

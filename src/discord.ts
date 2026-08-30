@@ -79,9 +79,18 @@ const sceneEmbed = (body: ScrapeResultBody) => {
             value: scene.urls?.length ? scene.urls.join(", ") : "N/A",
             inline: false,
           },
+          {
+            name: "Scraper",
+            value: body.runnerInfo?.scraperId
+              ? `[${body.runnerInfo.scraperName ?? body.runnerInfo.scraperId}](https://github.com/stashapp/CommunityScrapers/commit/${body.runnerInfo.scraperVersion}) ${body.runnerInfo.scraperVersion ? `\`${body.runnerInfo.scraperVersion.slice(0, 7)}\`` : ""}`
+              : "N/A",
+            inline: true,
+          },
         ],
         timestamp: body.runnerInfo?.date,
-        footer: { text: `stash ${body.stashInfo?.version.version}` },
+        footer: {
+          text: `stash ${body.stashInfo?.version.version} (${body.stashInfo?.version.hash?.slice(0, 7)})`,
+        },
         color: 9499119,
       },
     ],

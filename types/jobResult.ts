@@ -17,6 +17,7 @@ export interface jobResult {
 
 export interface runnerInfo {
   scraperId?: string;
+  scraperName?: string;
   scraperVersion?: string;
   url: string;
   scrapeType: "scene";

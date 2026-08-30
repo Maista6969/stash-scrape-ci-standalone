@@ -44,6 +44,7 @@ export const getScrapeResult = async (type: string, url: string, rescrape = fals
     result: result.result!,
     runnerInfo: {
       scraperId: searchResult?.id,
+      scraperName: searchResult?.name,
       scraperVersion,
       ...result.runnerInfo
     },
