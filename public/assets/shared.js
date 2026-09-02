@@ -47,6 +47,9 @@ function replaceShared(data) {
       imageContainer.src = imageContainer.dataset.src;
       document.getElementById("result-image-placeholder").remove();
     };
+  } else {
+    document.getElementById("result-image-placeholder").textContent =
+      "No image scraped";
   }
 
   // add urls
