@@ -11,9 +11,12 @@ export enum keyStatus {
 // long-lived process
 const utcDay = () => new Date().getUTCDay()
 
+const isAdminKey = (key: string): boolean =>
+  !!process.env.ADMIN_KEY && key === process.env.ADMIN_KEY
+
 export const checkKeyLimit = async (key: string): Promise<keyStatus> => {
   // check if matches admin key
-  if (key == process.env.ADMIN_KEY) return keyStatus.valid
+  if (isAdminKey(key)) return keyStatus.valid
   const limit = await getKeyLimit(key);
   // add to redis counter
   const hasKey = !!limit

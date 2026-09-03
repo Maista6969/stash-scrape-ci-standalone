@@ -35,7 +35,7 @@ const koaValidate = async (ctx: Koa.Context, next: Koa.Next) => {
 
 const koaValidateAdmin = async (ctx: Koa.Context, next: Koa.Next) => {
   const apikey = (ctx.request as any).body?.auth || ctx.query.auth || ctx.headers['x-api-key']
-  if (apikey !== process.env.ADMIN_KEY) {
+  if (!process.env.ADMIN_KEY || apikey !== process.env.ADMIN_KEY) {
     ctx.status = 401
     ctx.body = 'Unauthorized'
     return
