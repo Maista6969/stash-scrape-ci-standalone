@@ -2,7 +2,7 @@
 import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes } from "./db.js"
 import { StashApp } from "./stash-app.js"
 import { helpText } from "./utils.js"
-import { keyStatus, checkKeyLimit, checkKeyValidity, getKeyUsage } from "./apikey.js"
+import { checkKeyValidity, getKeyUsage } from "./apikey.js"
 import 'dotenv/config'
 
 import Koa from "koa"
@@ -16,25 +16,23 @@ import { getScrapeResult } from "./scrape.js"
 import { verifyDiscordSignature, handleInteraction } from "./discord.js"
 const router = new Router();
 
-// apikey validatorv
+// missing definition patches
+const getRequestKey = (ctx: Koa.Context): string =>
+  (ctx.request as any).body?.auth || ctx.query.auth || ctx.headers['x-api-key']
+
+// authenticates only — rate-limit credits are consumed in getScrapeResult,
+// so cached lookups stay free
 const koaValidate = async (ctx: Koa.Context, next: Koa.Next) => {
-  // missing definition patches
-  const apiKey = (ctx.request as any).body?.auth || ctx.query.auth || ctx.headers['x-api-key']
-  const apikeyResponse = await checkKeyLimit(apiKey)
-  if (apikeyResponse === keyStatus.invalid) {
+  if (!await checkKeyValidity(getRequestKey(ctx))) {
     ctx.status = 401
     ctx.body = 'Unauthorized'
-    return
-  } else if (apikeyResponse === keyStatus.exhausted) {
-    ctx.status = 429
-    ctx.body = 'API key rate limit exceeded'
     return
   }
   return next()
 }
 
 const koaValidateAdmin = async (ctx: Koa.Context, next: Koa.Next) => {
-  const apikey = (ctx.request as any).body?.auth || ctx.query.auth || ctx.headers['x-api-key']
+  const apikey = getRequestKey(ctx)
   if (!process.env.ADMIN_KEY || apikey !== process.env.ADMIN_KEY) {
     ctx.status = 401
     ctx.body = 'Unauthorized'
@@ -124,8 +122,7 @@ router.post("/api/update", koaValidate, async (ctx) => {
 })
 
 router.get("/api/validatekey", async (ctx) => {
-  const apiKey = (ctx.request as any).body?.auth || ctx.query.auth || ctx.headers['x-api-key']
-  const apikeyResponse = await checkKeyValidity(apiKey)
+  const apikeyResponse = await checkKeyValidity(getRequestKey(ctx))
   if (apikeyResponse) {
     ctx.status = 200
     ctx.body = 'API key is valid'
@@ -158,7 +155,7 @@ router.get("/api/scrape/:type/{*url}", koaValidate, async (ctx) => {
     ctx.body = 'URL is required'
     return
   }
-  const { status, body } = await getScrapeResult(ctx.params.type, url)
+  const { status, body } = await getScrapeResult(ctx.params.type, url, false, getRequestKey(ctx))
   ctx.status = status
   ctx.body = body
 })
@@ -176,7 +173,7 @@ router.post("/api/scrape", koaValidate, async (ctx) => {
     ctx.body = `Invalid scrapeType. Valid types are: scene`
     return
   }
-  const { status, body } = await getScrapeResult(bodyJSON.scrapeType, bodyJSON.url, bodyJSON.rescrape)
+  const { status, body } = await getScrapeResult(bodyJSON.scrapeType, bodyJSON.url, bodyJSON.rescrape, getRequestKey(ctx))
   ctx.status = status
   ctx.body = body
 })

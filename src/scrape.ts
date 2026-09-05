@@ -2,10 +2,21 @@ import { getResult, addResult } from "./db.js"
 import { StashApp } from "./stash-app.js"
 import { genJobID } from "./utils.js"
 import { uploadImage } from "./b2.js"
+import { consumeKeyCredit, keyStatus } from "./apikey.js"
 import { jobResult } from "../types/jobResult.js"
 
+// apiKey is only passed by the HTTP routes — Discord commands are role-gated,
+// not rate-limited. Cache hits are free; an actual scrape consumes a credit.
+const checkCredit = async (apiKey?: string): Promise<{ status: number, body: string } | null> => {
+  if (apiKey === undefined) return null
+  const credit = await consumeKeyCredit(apiKey)
+  if (credit === keyStatus.exhausted) return { status: 429, body: 'API key rate limit exceeded' }
+  if (credit === keyStatus.invalid) return { status: 401, body: 'Unauthorized' }
+  return null
+}
+
 // shared by the HTTP API and the Discord /interactions route
-export const getScrapeResult = async (type: string, url: string, rescrape = false): Promise<{ status: number, body: Object | string }> => {
+export const getScrapeResult = async (type: string, url: string, rescrape = false, apiKey?: string): Promise<{ status: number, body: Object | string }> => {
   // only support scenes for now
   if (type !== 'scene') {
     return { status: 400, body: { error: 'Invalid scrapeType. Valid types are: scene' } }
@@ -15,6 +26,8 @@ export const getScrapeResult = async (type: string, url: string, rescrape = fals
   if (!rescrape && existingResult) {
     return { status: 200, body: existingResult }
   }
+  const creditError = await checkCredit(apiKey)
+  if (creditError) return creditError
   // set up stash instance
   const stash = new StashApp()
   const searchResult = await stash.urlSeachScrapers(url)
