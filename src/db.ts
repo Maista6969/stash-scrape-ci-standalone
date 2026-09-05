@@ -28,6 +28,12 @@ export async function getResult(lookup: string) {
   return doc ? doc : null;
 }
 
+// only successful scrapes count as cache hits — stored failures must not
+// suppress a retry
+export async function getCachedResult(url: string) {
+  return sceneCollection.find({ url, error: null }).sort({ "_id": -1 }).limit(1).next();
+}
+
 export async function addResult(cachedResult: any, url: string) {
   await sceneCollection.insertOne({
     url,

@@ -8,9 +8,10 @@ export interface partialJobResult {
 }
 
 export interface jobResult {
-  result: sceneResult;
+  result?: sceneResult; // absent when the scrape failed
+  error?: string;
   runnerInfo: runnerInfo;
-  stashInfo: stashInfo;
+  stashInfo?: stashInfo; // absent when the job failed before reaching Stash
   jobId: string; // nanoid generated id with limited alphabet
   logs: logEntry[];
 }

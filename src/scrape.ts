@@ -1,4 +1,4 @@
-import { getResult, addResult } from "./db.js"
+import { getCachedResult, addResult } from "./db.js"
 import { StashApp } from "./stash-app.js"
 import { genJobID } from "./utils.js"
 import { uploadImage } from "./b2.js"
@@ -15,6 +15,36 @@ const checkCredit = async (apiKey?: string): Promise<{ status: number, body: str
   return null
 }
 
+// the actual scrape chain; returns a storable job document whether the scrape
+// succeeds or errors
+const runScrapeJob = async (stash: StashApp, searchResult: { id: string, name: string }, url: string, jobId: string): Promise<jobResult> => {
+  // check update packages
+  await stash.checkUpdatePackages()
+  // set start time
+  const startTime = new Date()
+  const result = await stash.startScrape(url)
+  // get logs
+  const logs = await stash.getLogs(startTime)
+  // get package versions
+  const scraperVersion = await stash.getPkgVersion(searchResult.id)
+  // replace image with CDN url
+  if (result.result) {
+    const imageURL = await uploadImage(result.result.image ?? "", jobId)
+    if (imageURL) result.result.image = imageURL
+  }
+  return {
+    jobId,
+    ...result,
+    runnerInfo: {
+      scraperId: searchResult.id,
+      scraperName: searchResult.name,
+      scraperVersion,
+      ...result.runnerInfo
+    },
+    logs,
+  }
+}
+
 // shared by the HTTP API and the Discord /interactions route
 export const getScrapeResult = async (type: string, url: string, rescrape = false, apiKey?: string): Promise<{ status: number, body: Object | string }> => {
   // only support scenes for now
@@ -22,7 +52,7 @@ export const getScrapeResult = async (type: string, url: string, rescrape = fals
     return { status: 400, body: { error: 'Invalid scrapeType. Valid types are: scene' } }
   }
   // try finding existing result first
-  const existingResult = await getResult(url)
+  const existingResult = await getCachedResult(url)
   if (!rescrape && existingResult) {
     return { status: 200, body: existingResult }
   }
@@ -34,37 +64,10 @@ export const getScrapeResult = async (type: string, url: string, rescrape = fals
   if ("error" in searchResult) {
     return { status: 422, body: searchResult }
   }
-  const jobId = genJobID()
-  // check update packages
-  await stash.checkUpdatePackages()
-  // set start time
-  const startTime = new Date()
-  const result = await stash.startScrape(url)
-  // if error, return
-  if (result.error) {
-    return { status: 500, body: result }
-  }
-  // get logs
-  const logs = await stash.getLogs(startTime)
-  // get package versions
-  const scraperVersion = await stash.getPkgVersion(searchResult?.id)
-  // replace image with CDN url
-  const imageURL = await uploadImage(result.result?.image ?? "", jobId)
-  if (imageURL) result.result!.image = imageURL
-  const cachedResult: jobResult = {
-    jobId,
-    ...result,
-    result: result.result!,
-    runnerInfo: {
-      scraperId: searchResult?.id,
-      scraperName: searchResult?.name,
-      scraperVersion,
-      ...result.runnerInfo
-    },
-    stashInfo: result.stashInfo,
-    logs,
-  }
-  // insert
+  const cachedResult = await runScrapeJob(stash, searchResult, url, genJobID())
+  // failures are stored too — they get a debug page with logs, but
+  // getCachedResult skips them so retries still re-scrape
   addResult(cachedResult, url)
-  return { status: 200, body: cachedResult }
+  return { status: cachedResult.error ? 500 : 200, body: cachedResult }
 }
+

@@ -1,6 +1,7 @@
 function replaceShared(data) {
+  // stashInfo is absent on jobs that failed before reaching Stash
   // simple replacement
-  replaceResult(data.stashInfo.version.version, "runner-version");
+  replaceResult(data.stashInfo?.version?.version, "runner-version");
   replaceResult(data.runnerInfo?.scrapeType, "scrape-type");
   replaceResult(data.runnerInfo?.scraperId, "scrape-id");
   // complex replacements
@@ -10,9 +11,9 @@ function replaceShared(data) {
     new Date(data.runnerInfo.date).toLocaleString(),
   );
   replaceResult(
-    data.stashInfo.version.hash,
+    data.stashInfo?.version?.hash,
     "runner-hash",
-    ` (${data.stashInfo.version.hash})`,
+    ` (${data.stashInfo?.version?.hash})`,
   );
   // set url
   setUrl("scrape-url", data.runnerInfo.url);
@@ -23,11 +24,12 @@ function replaceShared(data) {
   );
   // manual replacements
   const scraperVersion = data.runnerInfo?.scraperVersion;
-  setUrl(
-    "scraper-hash",
-    `https://github.com/stashapp/CommunityScrapers/commit/${scraperVersion}`,
-    ` (${scraperVersion})`,
-  );
+  if (scraperVersion)
+    setUrl(
+      "scraper-hash",
+      `https://github.com/stashapp/CommunityScrapers/commit/${scraperVersion}`,
+      ` (${scraperVersion})`,
+    );
 
   // if error, show error message
   if (data.error) {
