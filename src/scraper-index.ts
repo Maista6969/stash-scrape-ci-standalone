@@ -4,7 +4,7 @@ import axios from "axios";
 import { StashApp } from "./stash-app.js";
 
 // scraper index searcher and installer
-async function searchScrapers(url: string): Promise<scraperExport[]> {
+export async function searchScrapers(url: string): Promise<scraperExport[]> {
   // fetch communityScrapers
   const communityScrapers = await axios
     .get("https://stashapp.github.io/CommunityScrapers/assets/scrapers.json")

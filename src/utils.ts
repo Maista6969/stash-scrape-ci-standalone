@@ -2,10 +2,14 @@
 export const helpText = `
 scrape-ci-standalone
   / - here
-  /api/result/:id - retrieve job result
+  /api/result/:id - retrieve job result ({ pending: true } while still running)
   /api/scrape - run a scrape job
     auth - authorization for the request
     url - the URL to scrape
+    rescrape - optional, ignore any cached result
+    async - optional, respond immediately with { jobId } and scrape in the
+            background; poll /api/result/:jobId (omit for the full result
+            in the response)
   /api/update - force update scrapers
 
   /api/admin/apikey - manage API keys

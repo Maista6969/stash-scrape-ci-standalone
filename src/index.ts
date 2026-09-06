@@ -12,7 +12,7 @@ import bodyParser from "@koa/bodyparser";
 import serve from 'koa-static';
 
 import Router from '@koa/router';
-import { getScrapeResult } from "./scrape.js"
+import { getScrapeResult, submitScrape } from "./scrape.js"
 import { verifyDiscordSignature, handleInteraction } from "./discord.js"
 const router = new Router();
 
@@ -173,7 +173,10 @@ router.post("/api/scrape", koaValidate, async (ctx) => {
     ctx.body = `Invalid scrapeType. Valid types are: scene`
     return
   }
-  const { status, body } = await getScrapeResult(bodyJSON.scrapeType, bodyJSON.url, bodyJSON.rescrape, getRequestKey(ctx))
+  // async is opt-in so existing synchronous consumers (e.g. the Rescrape
+  // userscript) keep getting the full result in the response body
+  const scrape = bodyJSON.async ? submitScrape : getScrapeResult
+  const { status, body } = await scrape(bodyJSON.scrapeType, bodyJSON.url, bodyJSON.rescrape, getRequestKey(ctx))
   ctx.status = status
   ctx.body = body
 })

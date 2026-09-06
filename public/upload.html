@@ -99,7 +99,7 @@
       }
       localStorage.setItem('auth', authKey);
 
-      const data = { url, scrapeType, auth: authKey };
+      const data = { url, scrapeType, auth: authKey, async: true };
       if (rescrape) {
         data.rescrape = true;
       }
@@ -109,20 +109,65 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to submit scrape.');
-        return res.json();
+      .then(async res => {
+        // error responses are either plain text or { error } JSON — surface
+        // the real message instead of a generic failure
+        const text = await res.text();
+        let body = null;
+        try { body = JSON.parse(text); } catch {}
+        if (!res.ok) throw new Error(body?.error || text || `Failed to submit scrape (${res.status}).`);
+        return body;
       })
       .then(data => {
-        if (data.jobId) {
-          const list = document.getElementById('scrape-result-list');
-          const item = document.createElement('li');
-          item.className = 'list-group-item';
-          item.innerHTML = `Job ID: <a href="${baseURL}/${scrapeType}?id=${data.jobId}" target="_blank">${data.jobId}</a>`;
-          list.prepend(item);
+        if (!data?.jobId) return;
+        const item = addResultItem(data.jobId, scrapeType);
+        if (data.pending) {
+          setItemStatus(item, 'running…');
+          pollResult(data.jobId, item);
+        } else {
+          // synchronous 200 means the cache already had a finished result
+          setItemStatus(item, `done (cached) — ${data.result?.title ?? 'no title'}`);
         }
       })
       .catch(err => alert(err.message));
+    }
+
+    function addResultItem(jobId, scrapeType) {
+      const list = document.getElementById('scrape-result-list');
+      const item = document.createElement('li');
+      item.className = 'list-group-item';
+      const link = document.createElement('a');
+      link.href = `${baseURL}/${scrapeType}?id=${jobId}`;
+      link.target = '_blank';
+      link.textContent = jobId;
+      const status = document.createElement('span');
+      status.className = 'ms-2 text-muted';
+      item.append('Job ID: ', link, status);
+      list.prepend(item);
+      return item;
+    }
+
+    function setItemStatus(item, text) {
+      item.querySelector('span').textContent = `— ${text}`;
+    }
+
+    function pollResult(jobId, item) {
+      const started = Date.now();
+      const interval = setInterval(async () => {
+        if (Date.now() - started > 5 * 60 * 1000) {
+          clearInterval(interval);
+          setItemStatus(item, 'still running after 5 minutes — check the result page later');
+          return;
+        }
+        try {
+          const res = await fetch(`${baseURL}/api/result/${jobId}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.pending) return;
+          clearInterval(interval);
+          setItemStatus(item, data.error ? `failed — ${data.error}` : `done — ${data.result?.title ?? 'no title'}`);
+        } catch {} // transient network errors: keep polling
+      }, 3000);
     }
   </script>
 </body>

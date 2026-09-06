@@ -28,10 +28,10 @@ export async function getResult(lookup: string) {
   return doc ? doc : null;
 }
 
-// only successful scrapes count as cache hits — stored failures must not
-// suppress a retry
+// only successful scrapes count as cache hits — stored failures and pending
+// jobs must not suppress a retry
 export async function getCachedResult(url: string) {
-  return sceneCollection.find({ url, error: null }).sort({ "_id": -1 }).limit(1).next();
+  return sceneCollection.find({ url, error: null, pending: null }).sort({ "_id": -1 }).limit(1).next();
 }
 
 export async function addResult(cachedResult: any, url: string) {
@@ -39,6 +39,16 @@ export async function addResult(cachedResult: any, url: string) {
     url,
     ...cachedResult
   });
+}
+
+// placeholder inserted at submit time so /api/result/:jobId resolves while the
+// background scrape runs
+export async function addPendingResult(jobId: string, url: string, runnerInfo: object) {
+  await sceneCollection.insertOne({ url, jobId, pending: true, runnerInfo });
+}
+
+export async function completePendingResult(jobId: string, cachedResult: any, url: string) {
+  await sceneCollection.replaceOne({ jobId }, { url, ...cachedResult });
 }
 
 export async function listRecentScrapes(limit: number = 20) {
