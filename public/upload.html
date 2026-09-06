@@ -38,6 +38,11 @@
           </form>
         </div>
 
+        <div class="card mt-4 p-3 d-none" id="update-result-card">
+          <h6>Scraper Update</h6>
+          <div id="update-result"></div>
+        </div>
+
         <div class="card mt-4 p-3">
           <h6>Scrape Results</h6>
           <ul id="scrape-result-list" class="list-group list-group-flush"></ul>
@@ -63,20 +68,29 @@
       document.getElementById('update-scrapers').addEventListener('click', () => {
         const auth = authInput.value.trim() || localStorage.getItem('auth');
         if (!auth) {
-          alert('You must be logged in to update scrapers.');
+          showUpdateResult('You must be logged in to update scrapers.', true);
           return;
         }
         localStorage.setItem('auth', auth);
+        const button = document.getElementById('update-scrapers');
+        button.disabled = true;
+        button.textContent = 'Updating…';
         fetch(`${baseURL}/api/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ auth })
-        }).then(res => {
-          if (res.ok) {
-            alert('Scrapers updated successfully!');
-          } else {
-            alert('Failed to update scrapers.');
-          }
+        })
+        .then(async res => {
+          const text = await res.text();
+          let body = null;
+          try { body = JSON.parse(text); } catch {}
+          if (!res.ok) throw new Error(text || `Failed to update scrapers (${res.status}).`);
+          showUpdateDiff(body.updated);
+        })
+        .catch(err => showUpdateResult(err.message, true))
+        .finally(() => {
+          button.disabled = false;
+          button.textContent = 'Update Scrapers';
         });
       });
     });
@@ -149,6 +163,30 @@
 
     function setItemStatus(item, text) {
       item.querySelector('span').textContent = `— ${text}`;
+    }
+
+    function showUpdateResult(message, isError = false) {
+      document.getElementById('update-result-card').classList.remove('d-none');
+      const container = document.getElementById('update-result');
+      container.textContent = message;
+      container.className = isError ? 'text-danger' : '';
+      return container;
+    }
+
+    function showUpdateDiff(updated) {
+      if (!updated?.length) {
+        showUpdateResult('Scrapers updated — no version changes.');
+        return;
+      }
+      const container = showUpdateResult(`Scrapers updated — ${updated.length} changed:`);
+      const list = document.createElement('ul');
+      list.className = 'mb-0';
+      for (const update of updated) {
+        const item = document.createElement('li');
+        item.textContent = `${update.package_id}: ${(update.before ?? 'new').slice(0, 7)} → ${update.after.slice(0, 7)}`;
+        list.appendChild(item);
+      }
+      container.appendChild(list);
     }
 
     function pollResult(jobId, item) {

@@ -1,6 +1,6 @@
 // imports
 import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes } from "./db.js"
-import { StashApp } from "./stash-app.js"
+import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
 import { checkKeyValidity, getKeyUsage } from "./apikey.js"
 import 'dotenv/config'
@@ -115,10 +115,7 @@ router.post("/api/admin/apikey/reactivate", koaValidateAdmin, async (ctx) => {
 })
 
 router.post("/api/update", koaValidate, async (ctx) => {
-  const stash = new StashApp()
-  await stash.migrateDatabase()
-  await stash.checkUpdatePackages(true)
-  ctx.body = 'Scrapers updated successfully'
+  ctx.body = { updated: await updateScrapersWithDiff() }
 })
 
 router.get("/api/validatekey", async (ctx) => {

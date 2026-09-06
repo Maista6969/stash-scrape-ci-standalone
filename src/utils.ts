@@ -10,7 +10,9 @@ scrape-ci-standalone
     async - optional, respond immediately with { jobId } and scrape in the
             background; poll /api/result/:jobId (omit for the full result
             in the response)
-  /api/update - force update scrapers
+  /api/update - force update scrapers; responds with
+    { updated: [{ package_id, before, after }] } listing version changes
+    (before is absent for newly installed packages)
 
   /api/admin/apikey - manage API keys
     GET /api/admin/apikey - list all API keys with usage

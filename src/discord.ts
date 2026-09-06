@@ -1,11 +1,10 @@
 import { webcrypto } from "crypto";
 import axios from "axios";
 import { getScrapeResult } from "./scrape.js";
-import { StashApp } from "./stash-app.js";
+import { updateScrapersWithDiff, scraperUpdate } from "./stash-app.js";
 import { createApiKey, getApiKeyByDiscordUser } from "./db.js";
 import { getKeyUsage } from "./apikey.js";
 import { jobResult } from "../types/jobResult.js";
-import { installedPackage } from "../types/stashapp.js";
 
 // flat daily limit for self-serve keys provisioned via /scrape_auth, regardless of role
 const SELF_SERVE_DAILY_LIMIT = 300;
@@ -110,20 +109,7 @@ const runScrapeUrlCommand = async (
   );
 };
 
-const updateScrapersEmbed = (
-  before: installedPackage[],
-  after: installedPackage[],
-) => {
-  const beforeVersions = new Map(
-    before.map((pkg): [string, string] => [pkg.package_id, pkg.version]),
-  );
-  const changed = after
-    .filter((pkg) => beforeVersions.get(pkg.package_id) !== pkg.version)
-    .map(
-      (pkg) =>
-        `**${pkg.package_id}**: \`${beforeVersions.get(pkg.package_id) ?? "new"}\` → \`${pkg.version}\``,
-    );
-
+const updateScrapersEmbed = (changed: scraperUpdate[]) => {
   if (!changed.length) {
     return {
       content:
@@ -134,7 +120,10 @@ const updateScrapersEmbed = (
   const shown = changed.slice(0, 30);
   const lines = [
     `Scrapers updated and database migrated successfully — ${changed.length} changed:`,
-    ...shown,
+    ...shown.map(
+      (update) =>
+        `**${update.package_id}**: \`${update.before ?? "new"}\` → \`${update.after}\``,
+    ),
   ];
   if (changed.length > shown.length)
     lines.push(`…and ${changed.length - shown.length} more.`);
@@ -146,16 +135,12 @@ const runUpdateScrapersCommand = async (
   applicationId: string,
   token: string,
 ) => {
-  const stash = new StashApp();
   try {
-    const before = await stash.getInstalledScrapers();
-    await stash.migrateDatabase();
-    await stash.checkUpdatePackages(true);
-    const after = await stash.getInstalledScrapers();
+    const changed = await updateScrapersWithDiff();
     await followUpDeferred(
       applicationId,
       token,
-      updateScrapersEmbed(before, after),
+      updateScrapersEmbed(changed),
     ).catch((err) => console.error("Discord followup failed:", err));
   } catch (err) {
     console.error("Discord update_scrapers command failed:", err);

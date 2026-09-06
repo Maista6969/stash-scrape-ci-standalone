@@ -145,6 +145,32 @@ export class StashApp {
   urlSeachScrapers = async (url: string) => scraperSearch(url, this)
 }
 
+export interface scraperUpdate {
+  package_id: string;
+  before?: string; // absent for newly installed packages
+  after: string;
+}
+
+// migrate + forced scraper update, reporting which packages changed version;
+// shared by POST /api/update and the Discord /update_scrapers command
+export const updateScrapersWithDiff = async (): Promise<scraperUpdate[]> => {
+  const stash = new StashApp()
+  const before = await stash.getInstalledScrapers()
+  await stash.migrateDatabase()
+  await stash.checkUpdatePackages(true)
+  const after = await stash.getInstalledScrapers()
+  const beforeVersions = new Map(
+    before.map((pkg): [string, string] => [pkg.package_id, pkg.version]),
+  )
+  return after
+    .filter((pkg) => beforeVersions.get(pkg.package_id) !== pkg.version)
+    .map((pkg) => ({
+      package_id: pkg.package_id,
+      before: beforeVersions.get(pkg.package_id),
+      after: pkg.version,
+    }))
+}
+
 // get chrome useragent
 const getChromeUA = (): Promise<string> =>
   axios.get("https://jnrbsn.github.io/user-agents/user-agents.json")
