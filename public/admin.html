@@ -136,9 +136,23 @@
           <div class="card mt-4 p-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h6 class="mb-0">Installed Scrapers</h6>
-              <button id="refresh-scrapers" class="btn btn-sm btn-secondary">
-                Refresh
-              </button>
+              <div class="d-flex gap-2">
+                <div class="input-group input-group-sm" style="width: 280px">
+                  <input
+                    id="install-scraper-id"
+                    type="text"
+                    placeholder="Package ID (e.g. Altwolia)"
+                    class="form-control"
+                    autocomplete="off"
+                  />
+                  <button id="install-scraper" class="btn btn-success">
+                    Install
+                  </button>
+                </div>
+                <button id="refresh-scrapers" class="btn btn-sm btn-secondary">
+                  Refresh
+                </button>
+              </div>
             </div>
             <div class="table-responsive">
               <table class="table table-sm align-middle">
@@ -151,11 +165,12 @@
                     >
                       Package Date
                     </th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody id="scraper-table-body">
                   <tr>
-                    <td colspan="3" class="text-secondary">
+                    <td colspan="4" class="text-secondary">
                       Enter the admin key and click "Load Keys".
                     </td>
                   </tr>
@@ -172,6 +187,7 @@
       const apiURL = `${baseURL}/api/admin/apikey`;
       const scrapesURL = `${baseURL}/api/admin/scrapes`;
       const scrapersURL = `${baseURL}/api/admin/scrapers`;
+      const scraperURL = `${baseURL}/api/admin/scraper`;
 
       const authInput = document.getElementById("admin-auth");
       const tableBody = document.getElementById("key-table-body");
@@ -213,6 +229,14 @@
         document
           .getElementById("refresh-scrapers")
           .addEventListener("click", loadScrapers);
+        document
+          .getElementById("install-scraper")
+          .addEventListener("click", installScraper);
+        document
+          .getElementById("install-scraper-id")
+          .addEventListener("keydown", (event) => {
+            if (event.key === "Enter") installScraper();
+          });
 
         document
           .getElementById("create-form")
@@ -398,7 +422,7 @@
         scraperTableBody.innerHTML = "";
         if (!scrapers.length) {
           scraperTableBody.innerHTML =
-            '<tr><td colspan="3" class="text-secondary">No scrapers installed.</td></tr>';
+            '<tr><td colspan="4" class="text-secondary">No scrapers installed.</td></tr>';
           return;
         }
         scrapers.sort((a, b) => a.package_id.localeCompare(b.package_id));
@@ -418,8 +442,71 @@
           dateCell.textContent = formatDate(scraper.date);
           row.appendChild(dateCell);
 
+          const actionCell = document.createElement("td");
+          const removeBtn = document.createElement("button");
+          removeBtn.className = "btn btn-sm btn-outline-danger";
+          removeBtn.textContent = "Remove";
+          removeBtn.addEventListener("click", () =>
+            removeScraper(scraper.package_id),
+          );
+          actionCell.appendChild(removeBtn);
+          row.appendChild(actionCell);
+
           scraperTableBody.appendChild(row);
         }
+      }
+
+      function installScraper() {
+        const auth = getAuth();
+        if (!auth) {
+          alert("Admin key is required.");
+          return;
+        }
+        const idInput = document.getElementById("install-scraper-id");
+        const id = idInput.value.trim();
+        if (!id) {
+          alert("Package ID is required.");
+          return;
+        }
+        const button = document.getElementById("install-scraper");
+        button.disabled = true;
+        button.textContent = "Installing…";
+        fetch(scraperURL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ auth, id }),
+        })
+          .then(async (res) => {
+            if (!res.ok)
+              throw new Error(
+                (await res.text()) || "Failed to install scraper.",
+              );
+            idInput.value = "";
+            loadScrapers();
+          })
+          .catch((err) => alert(err.message))
+          .finally(() => {
+            button.disabled = false;
+            button.textContent = "Install";
+          });
+      }
+
+      function removeScraper(id) {
+        if (!confirm(`Uninstall scraper package "${id}"?`)) return;
+        const auth = getAuth();
+        fetch(scraperURL, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ auth, id }),
+        })
+          .then(async (res) => {
+            if (!res.ok)
+              throw new Error(
+                (await res.text()) || "Failed to uninstall scraper.",
+              );
+            loadScrapers();
+          })
+          .catch((err) => alert(err.message));
       }
 
       function createKey() {
