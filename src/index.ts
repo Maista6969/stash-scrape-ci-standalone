@@ -103,6 +103,48 @@ router.get("/api/admin/scrapers", koaValidateAdmin, async (ctx) => {
   ctx.body = await stash.getInstalledScrapers()
 })
 
+router.post("/api/admin/scraper", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  if (!body || !body.id) {
+    ctx.status = 400
+    ctx.body = 'Scraper package id is required'
+    return
+  }
+  const stash = new StashApp()
+  const jobId = await stash.installPackage(body.id)
+  await stash.awaitJobFinished(jobId).catch(() => {})
+  await stash.reloadScrapers()
+  // the job can also "finish" without installing anything (e.g. unknown id),
+  // so verify the package actually landed rather than trusting job status
+  const version = await stash.getPkgVersion(body.id)
+  if (!version) {
+    ctx.status = 422
+    ctx.body = `Package ${body.id} was not installed — check the id against the package index`
+    return
+  }
+  ctx.body = { installed: body.id, version }
+})
+
+router.delete("/api/admin/scraper", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  if (!body || !body.id) {
+    ctx.status = 400
+    ctx.body = 'Scraper package id is required'
+    return
+  }
+  const stash = new StashApp()
+  const version = await stash.getPkgVersion(body.id)
+  if (!version) {
+    ctx.status = 404
+    ctx.body = `Package ${body.id} is not installed`
+    return
+  }
+  const jobId = await stash.uninstallPackage(body.id)
+  await stash.awaitJobFinished(jobId)
+  await stash.reloadScrapers()
+  ctx.body = { removed: body.id, version }
+})
+
 router.post("/api/admin/apikey/reactivate", koaValidateAdmin, async (ctx) => {
   const body = (ctx.request as any).body
   if (!body || !body.key) {

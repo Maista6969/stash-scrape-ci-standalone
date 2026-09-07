@@ -53,7 +53,7 @@ export class StashApp {
         .then(userAgent => this.updateUA(userAgent))
       console.log("Scrapers updated")
       // reload scrapers
-      await this.callGQL(`mutation { reloadScrapers }`)
+      await this.reloadScrapers()
       // push update
       setLastScraperUpdate()
     } else {
@@ -102,6 +102,17 @@ export class StashApp {
       } type: Scraper
     )}`, { id })
     .then(data => data.installPackages)
+
+  uninstallPackage = (id: String): Promise<number> => this.callGQL(`mutation ($id: String!) {
+    uninstallPackages(
+      packages: {
+        id: $id,
+        sourceURL: "https://stashapp.github.io/CommunityScrapers/stable/index.yml"
+      } type: Scraper
+    )}`, { id })
+    .then(data => data.uninstallPackages)
+
+  reloadScrapers = async (): Promise<void> => this.callGQL(`mutation { reloadScrapers }`)
 
   // get log cache (30 items)
   // https://github.com/stashapp/stash/blob/12c4e1f61c49cd4e625a62e9bde7df9e02c0c47c/internal/log/logger.go#L113

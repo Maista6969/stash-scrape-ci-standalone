@@ -29,6 +29,12 @@ scrape-ci-standalone
 
   /api/admin/scrapers - list installed scrapers (id, version, package release date)
 
+  /api/admin/scraper - manage individual scraper packages
+    POST /api/admin/scraper - install a package from the CommunityScrapers index
+      id - required, the package id (e.g. "Altwolia")
+    DELETE /api/admin/scraper - uninstall a package
+      id - required, the package id
+
   /upload - submit a new scrape job
   /admin - manage API keys
   /scene?id=:id - view scene result
