@@ -9,13 +9,18 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
+        # mongodb-ce repackages MongoDB's official binaries; the plain `mongodb` package compiles from source
+        pkgs = import nixpkgs {
+          inherit system;
+          config.allowUnfreePredicate = pkg: nixpkgs.lib.getName pkg == "mongodb-ce";
+        };
       in
       {
         devShells.default = pkgs.mkShell {
           packages = [
             pkgs.nodejs_22
             pkgs.pnpm
+            pkgs.mongodb-ce
           ];
         };
       });
