@@ -54,8 +54,11 @@ services:
       init-python-deps:
         condition: service_completed_successfully
     environment:
-      - HTTP_PROXY="http://gluetun:8888"
-      - FLARESOLVERR_URL="http://byparr:8191/v1"
+      # Go and Python only use HTTP_PROXY for http:// URLs; https:// needs HTTPS_PROXY
+      - HTTP_PROXY=http://gluetun:8888
+      - HTTPS_PROXY=http://gluetun:8888
+      - NO_PROXY=localhost,127.0.0.1,byparr,gluetun,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
+      - FLARESOLVERR_URL=http://byparr:8191/v1
     volumes:
       - /home/stash/app/stash/pip:/pip-install:rw
       - /home/stash/app/stash/config:/config:rw
