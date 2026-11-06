@@ -34,7 +34,8 @@ const authorize = async () => {
 }
 
 export async function uploadImage(base64: string, jobID: string) {
-  if (!base64) return null
+  // without B2 configured (local dev) the image stays inline as base64
+  if (!base64 || !process.env.B2_KEY_ID) return null
   // cache b2 token in mongo
   await authorize()
   const [meta, data] = base64.split(";base64,")
