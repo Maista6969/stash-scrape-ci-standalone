@@ -1,6 +1,6 @@
 // imports
 import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, getLatestResults, monitorUrl } from "./db.js"
-import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId } from "./monitor.js"
+import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue } from "./monitor.js"
 import { searchScrapers, getScraperId, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
@@ -265,6 +265,22 @@ const runMonitorScrape = async (monitored: monitorUrl): Promise<{ jobId: string 
   return { jobId: (result as any)?.jobId ?? null, error: (result as any)?.error ?? null }
 }
 
+// scraper files with a scheduled scrape in flight
+const scheduledBusy = new Set<string>()
+const scheduleTick = async () => {
+  const urls = await listMonitorUrls()
+  // any stored scrape counts, including public users', so the schedule never piles on top of them
+  const lastScraped = new Map((await getLatestResults(urls.map(u => u.url))).map(doc => [doc._id, Date.parse(doc.date) || 0]))
+  const DAY = 24 * 3600_000
+  for (const url of pickDue(urls, lastScraped, scheduledBusy, Date.now(), 7 * DAY, DAY / 24)) {
+    const monitored = urls.find(u => u.url === url)!
+    scheduledBusy.add(monitored.scraperId)
+    runMonitorScrape(monitored)
+      .then(({ error }) => console.log(`Scheduled scrape ${url}: ${error ?? "ok"}`))
+      .catch(err => console.error(`Scheduled scrape ${url} failed:`, err))
+      .finally(() => scheduledBusy.delete(monitored.scraperId))
+  }
+}
 
 router.post("/api/admin/apikey/reactivate", koaValidateAdmin, async (ctx) => {
   const body = (ctx.request as any).body
@@ -368,6 +384,13 @@ app.use(serve('public', { extensions: ['html'] }));
 connect()
   .then(() => createIndex())
   .then(() => console.log("Connected to database"))
+  .then(() => {
+    // opt-in so local dev never scrapes from a home IP on its own
+    if (!process.env.MONITOR_SCHEDULE) return
+    // shortcut: in-process timer, fine for one app instance; move to the tester service once lanes exist
+    setInterval(() => scheduleTick().catch(err => console.error("Monitor schedule tick failed:", err)), 5 * 60_000)
+    console.log("Monitor schedule enabled")
+  })
   .catch(err => {
     console.error("Failed to connect to database:", err)
     process.exit(1)

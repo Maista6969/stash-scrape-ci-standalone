@@ -58,3 +58,27 @@ export const fetchOverview = async (scraperId: string): Promise<string | null> =
       throw err
     })
 }
+
+// a scraper file is one backend: at most one of its URLs per pick, none while it's busy or
+// scraped within gapMs, and of its URLs the one scraped longest ago once intervalMs old
+export const pickDue = (
+  urls: { url: string, scraperId: string }[],
+  lastScraped: Map<string, number>,
+  busy: Set<string>,
+  now: number,
+  intervalMs: number,
+  gapMs: number,
+): string[] => {
+  const byScraper = new Map<string, { url: string, last: number }[]>()
+  for (const { url, scraperId } of urls) {
+    byScraper.set(scraperId, [...byScraper.get(scraperId) ?? [], { url, last: lastScraped.get(url) ?? 0 }])
+  }
+  const due: string[] = []
+  for (const [scraperId, entries] of byScraper) {
+    if (busy.has(scraperId)) continue
+    if (now - Math.max(...entries.map(e => e.last)) < gapMs) continue
+    const oldest = entries.reduce((a, b) => (b.last < a.last ? b : a))
+    if (now - oldest.last >= intervalMs) due.push(oldest.url)
+  }
+  return due
+}

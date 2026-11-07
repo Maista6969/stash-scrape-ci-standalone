@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { classify, nextBaseline, parseOverview, presentFields, isValidPackageId } from "./monitor.js"
+import { classify, nextBaseline, parseOverview, presentFields, isValidPackageId, pickDue } from "./monitor.js"
 
 test("presentFields ignores empty values", () => {
   assert.deepEqual(presentFields({ title: "a", details: "", tags: [], studio: { name: "s" }, code: null }), ["studio", "title"])
@@ -50,4 +50,22 @@ test("package ids allow dots and ampersands but not traversal", () => {
   assert.ok(!isValidPackageId(".."))
   assert.ok(!isValidPackageId("a/b"))
   assert.ok(!isValidPackageId(undefined))
+})
+
+test("pickDue serializes and spaces each scraper file", () => {
+  const H = 3600_000, D = 24 * H, now = 30 * D
+  const urls = [
+    { url: "a1", scraperId: "A" }, { url: "a2", scraperId: "A" },
+    { url: "b1", scraperId: "B" },
+    { url: "c1", scraperId: "C" },
+    { url: "d1", scraperId: "D" },
+  ]
+  const last = new Map([
+    ["a1", now - 10 * D],            // A: a2 never scraped, so it goes first
+    ["b1", now - 8 * D],             // B: due
+    ["c1", now - 3 * D],             // C: scraped within the week
+  ])
+  assert.deepEqual(pickDue(urls, last, new Set(["D"]), now, 7 * D, H), ["a2", "b1"])
+  last.set("a2", now - 30 * 60_000)  // A scraped half an hour ago: a1 is due but must wait out the gap
+  assert.deepEqual(pickDue(urls, last, new Set(), now, 7 * D, H), ["b1", "d1"])
 })
