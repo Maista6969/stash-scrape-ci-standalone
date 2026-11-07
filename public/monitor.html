@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scraper Monitor</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        padding-top: 30px;
+        padding-bottom: 30px;
+      }
+      summary {
+        cursor: pointer;
+      }
+      .group-name {
+        font-family: var(--bs-font-monospace);
+      }
+      .url-cell a {
+        max-width: 360px;
+      }
+      .missing {
+        font-family: var(--bs-font-monospace);
+        font-size: 0.85em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-11">
+          <div class="card p-4">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="card-title mb-3">Scraper Monitor</h5>
+              <a href="/admin" class="small">Admin</a>
+            </div>
+            <div class="input-group">
+              <input
+                id="admin-auth"
+                type="password"
+                placeholder="Admin Key"
+                class="form-control"
+                autocomplete="off"
+              />
+              <button id="load" class="btn btn-primary">Load</button>
+            </div>
+          </div>
+
+          <div class="card mt-4 p-4">
+            <div class="row g-3">
+              <div class="col-md-5">
+                <label for="import-id" class="form-label"
+                  >Import a scraper's overview.md</label
+                >
+                <div class="input-group">
+                  <input
+                    id="import-id"
+                    type="text"
+                    placeholder="Package ID (e.g. 1passforallsites)"
+                    class="form-control"
+                    autocomplete="off"
+                  />
+                  <button id="import" class="btn btn-success">Import</button>
+                </div>
+              </div>
+              <div class="col-md-7">
+                <label for="add-url" class="form-label">Add a URL</label>
+                <div class="input-group">
+                  <input
+                    id="add-url"
+                    type="url"
+                    placeholder="https://..."
+                    class="form-control"
+                    autocomplete="off"
+                  />
+                  <button id="add" class="btn btn-success">Add</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-4 p-3">
+            <div
+              class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3"
+            >
+              <h6 id="summary" class="mb-0">Monitored URLs</h6>
+              <div class="d-flex gap-2 align-items-center">
+                <input
+                  id="filter"
+                  type="search"
+                  placeholder="Filter scraper, studio or URL"
+                  class="form-control form-control-sm"
+                  style="width: 240px"
+                />
+                <div class="form-check mb-0">
+                  <input id="failing-only" type="checkbox" class="form-check-input" />
+                  <label for="failing-only" class="form-check-label small"
+                    >Failing only</label
+                  >
+                </div>
+                <button id="refresh" class="btn btn-sm btn-secondary">
+                  Refresh
+                </button>
+              </div>
+            </div>
+            <div id="groups" class="text-secondary">
+              Enter the admin key and click "Load".
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const baseURL = window.location.origin;
+      const monitorURL = `${baseURL}/api/admin/monitor`;
+
+      const authInput = document.getElementById("admin-auth");
+      const groupsEl = document.getElementById("groups");
+      const filterInput = document.getElementById("filter");
+      const failingOnly = document.getElementById("failing-only");
+
+      const STATUS = {
+        regressed: { badge: "text-bg-warning", label: "Regressed" },
+        error: { badge: "text-bg-danger", label: "Error" },
+        running: { badge: "text-bg-info", label: "Running" },
+        never: { badge: "text-bg-secondary", label: "Never scraped" },
+        ok: { badge: "text-bg-success", label: "OK" },
+      };
+      const isFailing = (u) => u.status === "regressed" || u.status === "error";
+
+      let entries = [];
+      const openGroups = new Set();
+      // kept outside the DOM so a spinner survives the reloads that rebuild every row
+      const scraping = new Set();
+
+      function formatDate(iso) {
+        if (!iso) return "";
+        return iso.replace("T", " ").slice(0, 16);
+      }
+
+      function getAuth() {
+        return authInput.value.trim() || localStorage.getItem("auth");
+      }
+
+      function el(tag, props = {}, children = []) {
+        const node = Object.assign(document.createElement(tag), props);
+        for (const child of [].concat(children)) {
+          if (child != null) node.append(child);
+        }
+        return node;
+      }
+
+      async function api(path, method, data) {
+        const auth = getAuth();
+        if (!auth) throw new Error("Admin key is required.");
+        const res =
+          method === "GET"
+            ? await fetch(`${monitorURL}${path}?auth=${encodeURIComponent(auth)}`)
+            : await fetch(`${monitorURL}${path}`, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ auth, ...data }),
+              });
+        if (!res.ok) throw new Error((await res.text()) || `Request failed (${res.status})`);
+        return res.json();
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const storedAuth = localStorage.getItem("auth");
+        if (storedAuth) {
+          authInput.value = storedAuth;
+          load();
+        }
+        document.getElementById("load").addEventListener("click", () => {
+          const auth = authInput.value.trim();
+          if (!auth) {
+            alert("Admin key is required.");
+            return;
+          }
+          localStorage.setItem("auth", auth);
+          load();
+        });
+        document.getElementById("refresh").addEventListener("click", load);
+        document.getElementById("import").addEventListener("click", importOverview);
+        document.getElementById("add").addEventListener("click", addUrl);
+        for (const id of ["import-id", "add-url"]) {
+          document.getElementById(id).addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            id === "import-id" ? importOverview() : addUrl();
+          });
+        }
+        filterInput.addEventListener("input", render);
+        failingOnly.addEventListener("change", render);
+      });
+
+      function load() {
+        api("", "GET")
+          .then((data) => {
+            entries = data;
+            render();
+          })
+          .catch((err) => alert(err.message));
+      }
+
+      function render() {
+        const query = filterInput.value.trim().toLowerCase();
+        const visible = entries.filter(
+          (u) =>
+            (!failingOnly.checked || isFailing(u)) &&
+            (!query ||
+              [u.scraperId, u.studio, u.network, u.url].some((v) =>
+                v?.toLowerCase().includes(query),
+              )),
+        );
+
+        const failing = entries.filter(isFailing).length;
+        document.getElementById("summary").textContent =
+          `Monitored URLs: ${entries.length} · ${failing} failing`;
+
+        const groups = new Map();
+        for (const u of visible) {
+          if (!groups.has(u.scraperId)) groups.set(u.scraperId, []);
+          groups.get(u.scraperId).push(u);
+        }
+
+        groupsEl.innerHTML = "";
+        groupsEl.className = "";
+        if (!groups.size) {
+          groupsEl.className = "text-secondary";
+          groupsEl.textContent = entries.length
+            ? "Nothing matches the filter."
+            : "No URLs yet. Import a scraper's overview.md or add a URL.";
+          return;
+        }
+
+        // stable order: scraping a URL must not move it
+        const sorted = [...groups.entries()].sort(([a], [b]) =>
+          a.localeCompare(b),
+        );
+        for (const [scraperId, urls] of sorted) {
+          groupsEl.append(renderGroup(scraperId, urls));
+        }
+      }
+
+      function renderGroup(scraperId, urls) {
+        urls.sort(
+          (a, b) =>
+            (a.network ?? "").localeCompare(b.network ?? "") ||
+            (a.studio ?? "").localeCompare(b.studio ?? "") ||
+            a.url.localeCompare(b.url),
+        );
+        const counts = Object.keys(STATUS)
+          .map((s) => [s, urls.filter((u) => u.status === s).length])
+          .filter(([, n]) => n)
+          .map(([s, n]) =>
+            el("span", {
+              className: `badge ${STATUS[s].badge} ms-1`,
+              textContent: `${n} ${STATUS[s].label.toLowerCase()}`,
+            }),
+          );
+
+        const details = el("details", { className: "mb-2", open: openGroups.has(scraperId) });
+        details.addEventListener("toggle", () =>
+          details.open ? openGroups.add(scraperId) : openGroups.delete(scraperId),
+        );
+        details.append(
+          el("summary", { className: "py-1" }, [
+            el("span", { className: "group-name", textContent: scraperId }),
+            el("span", { className: "text-secondary small ms-2", textContent: `${urls.length} URLs` }),
+            ...counts,
+          ]),
+          el("div", { className: "table-responsive" },
+            el("table", { className: "table table-sm align-middle mb-2" }, [
+              el("thead", {},
+                el("tr", {}, ["Studio", "URL", "Status", "Last scrape", ""].map((h) =>
+                  el("th", { textContent: h }),
+                )),
+              ),
+              el("tbody", {}, urls.map(renderRow)),
+            ]),
+          ),
+        );
+        return details;
+      }
+
+      function renderRow(u) {
+        const status = STATUS[u.status];
+        const statusCell = el("td", {}, el("span", { className: `badge ${status.badge}`, textContent: status.label }));
+        if (u.missing.length) {
+          statusCell.append(el("div", { className: "missing text-warning", textContent: `missing: ${u.missing.join(", ")}` }));
+        }
+        if (u.latest?.error) {
+          statusCell.append(el("div", { className: "small text-danger text-truncate", style: "max-width: 260px", title: u.latest.error, textContent: u.latest.error }));
+        }
+        // Stash dispatches overlapping URL patterns randomly, so a different scraper may have answered
+        if (u.latest?.scraperId && u.latest.scraperId !== u.scraperId) {
+          statusCell.append(el("div", { className: "small text-info", textContent: `scraped by ${u.latest.scraperId}` }));
+        }
+
+        const lastCell = el("td", { className: "small" });
+        if (u.latest?.jobId) {
+          lastCell.append(
+            el("a", { href: `${baseURL}/scene?id=${u.latest.jobId}`, target: "_blank", rel: "noopener noreferrer", textContent: formatDate(u.latest.date) || u.latest.jobId }),
+          );
+        }
+
+        const busy = scraping.has(u.url);
+        const scrapeBtn = el("button", { className: "btn btn-sm btn-outline-primary position-relative", disabled: busy }, [
+          // hidden label keeps the button's width so the table doesn't reflow
+          el("span", { className: busy ? "invisible" : "", textContent: "Scrape" }),
+          busy
+            ? // flex centering: translate-middle's !important transform would cancel the spin animation
+              el("span", { className: "position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" },
+                el("span", { className: "spinner-border spinner-border-sm", role: "status", ariaLabel: "Scraping" }),
+              )
+            : null,
+        ]);
+        scrapeBtn.addEventListener("click", () => scrapeUrl(u.url));
+        const removeBtn = el("button", { className: "btn btn-sm btn-outline-danger", textContent: "Remove" });
+        removeBtn.addEventListener("click", () => removeUrl(u.url));
+
+        return el("tr", {}, [
+          el("td", {}, [
+            u.network ? el("div", { className: "small text-secondary", textContent: u.network }) : null,
+            u.studio || el("span", { className: "text-secondary", textContent: u.latest?.studio ?? "—" }),
+          ]),
+          el("td", { className: "url-cell" },
+            el("a", { href: u.url, target: "_blank", rel: "noopener noreferrer", className: "text-truncate d-inline-block", textContent: u.url }),
+          ),
+          statusCell,
+          lastCell,
+          el("td", { className: "text-nowrap" }, el("div", { className: "d-flex gap-1" }, [scrapeBtn, removeBtn])),
+        ]);
+      }
+
+      function importOverview() {
+        const input = document.getElementById("import-id");
+        const id = input.value.trim();
+        if (!id) return alert("Package ID is required.");
+        const button = document.getElementById("import");
+        button.disabled = true;
+        api("/import", "POST", { id })
+          .then(({ found, added }) => {
+            input.value = "";
+            openGroups.add(id);
+            alert(`${id}: ${found} URLs in overview.md, ${added} new.`);
+            load();
+          })
+          .catch((err) => alert(err.message))
+          .finally(() => (button.disabled = false));
+      }
+
+      function addUrl() {
+        const urlInput = document.getElementById("add-url");
+        const url = urlInput.value.trim();
+        if (!url) return alert("URL is required.");
+        api("/url", "POST", { url })
+          .then(({ added, scraperId, overlap }) => {
+            if (!added) alert("That URL is already monitored.");
+            // the first scrape fills in studio and network
+            else scrapeUrl(url);
+            if (overlap) alert(`Several scrapers match this URL (${overlap.join(", ")}); Stash will pick one at random. Filed under ${scraperId}.`);
+            urlInput.value = "";
+            openGroups.add(scraperId);
+            load();
+          })
+          .catch((err) => alert(err.message));
+      }
+
+      function removeUrl(url) {
+        if (!confirm(`Stop monitoring ${url}?\nIts baseline is discarded; past scrapes are kept.`)) return;
+        api("/url", "DELETE", { url })
+          .then(load)
+          .catch((err) => alert(err.message));
+      }
+
+      function scrapeUrl(url) {
+        scraping.add(url);
+        render();
+        api("/scrape", "POST", { url })
+          .catch((err) => alert(err.message))
+          .finally(() => {
+            scraping.delete(url);
+            load();
+          });
+      }
+    </script>
+  </body>
+</html>

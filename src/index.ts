@@ -1,5 +1,7 @@
 // imports
-import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes } from "./db.js"
+import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, getLatestResults, monitorUrl } from "./db.js"
+import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId } from "./monitor.js"
+import { searchScrapers, getScraperId, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
 import { checkKeyValidity, getKeyUsage } from "./apikey.js"
@@ -144,6 +146,125 @@ router.delete("/api/admin/scraper", koaValidateAdmin, async (ctx) => {
   await stash.reloadScrapers()
   ctx.body = { removed: body.id, version }
 })
+
+// monitor: URLs watched per scraper, each with its latest scrape and regression status
+router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
+  const urls = await listMonitorUrls()
+  const latest = new Map((await getLatestResults(urls.map(u => u.url))).map(doc => [doc._id, doc]))
+  ctx.body = urls.map(u => {
+    const doc = latest.get(u.url)
+    return {
+      ...u,
+      ...classify(doc, u.baseline),
+      latest: doc ? {
+        jobId: doc.jobId,
+        date: doc.date,
+        error: doc.error ?? null,
+        scraperId: doc.scraperId ?? null,
+        title: doc.result?.title ?? null,
+        studio: doc.result?.studio?.name ?? null,
+      } : null,
+    }
+  })
+})
+
+router.post("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  if (!body?.url || !URL.canParse(body.url) || !/^https?:$/.test(new URL(body.url).protocol)) {
+    ctx.status = 400
+    ctx.body = 'A valid http(s) URL is required'
+    return
+  }
+  const matched = (await searchScrapers(body.url)).map(getScraperId)
+  if (!matched.length) {
+    ctx.status = 422
+    ctx.body = 'No scraper matches this URL'
+    return
+  }
+  const added = await addMonitorUrls([{
+    url: body.url,
+    scraperId: matched[0],
+    studio: null,
+    network: null,
+    source: "manual",
+  }])
+  // Stash picks randomly between overlapping scrapers, so flag it rather than guess
+  ctx.body = { added, scraperId: matched[0], overlap: matched.length > 1 ? matched : null }
+})
+
+router.delete("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  if (!body?.url) {
+    ctx.status = 400
+    ctx.body = 'URL is required'
+    return
+  }
+  if (!await removeMonitorUrl(body.url)) {
+    ctx.status = 404
+    ctx.body = 'URL is not monitored'
+    return
+  }
+  ctx.body = { removed: body.url }
+})
+
+router.post("/api/admin/monitor/import", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  if (!isValidPackageId(body?.id)) {
+    ctx.status = 400
+    ctx.body = 'A valid scraper package id is required'
+    return
+  }
+  const md = await fetchOverview(body.id)
+  if (md === null) {
+    ctx.status = 404
+    ctx.body = `${body.id} has no overview.md on CommunityScrapers master`
+    return
+  }
+  const rows = parseOverview(md)
+  if (!rows.length) {
+    ctx.status = 422
+    ctx.body = `No URL rows found in ${body.id}/overview.md`
+    return
+  }
+  // an overview.md can list URLs another scraper claims (e.g. Reptyle's lists SayUncle's), so file each by match
+  const index = await fetchScraperIndex()
+  const docs = rows.map(row => {
+    const matched = matchScrapers(index, row.url).map(getScraperId)
+    const scraperId = matched.length && !matched.includes(body.id) ? matched[0] : body.id
+    return { ...row, scraperId, source: "overview" as const }
+  })
+  const added = await addMonitorUrls(docs)
+  const elsewhere = docs.filter(doc => doc.scraperId !== body.id).length
+  ctx.body = { found: rows.length, added, elsewhere }
+})
+
+router.post("/api/admin/monitor/scrape", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  const monitored = body?.url ? await getMonitorUrl(body.url) : null
+  if (!monitored) {
+    ctx.status = 404
+    ctx.body = 'URL is not monitored'
+    return
+  }
+  // a failed scrape is still a completed request: it's stored and shown in the panel
+  ctx.body = await runMonitorScrape(monitored)
+})
+
+const runMonitorScrape = async (monitored: monitorUrl): Promise<{ jobId: string | null, error: string | null }> => {
+  // no apiKey: monitor scrapes don't consume rate-limit credits
+  const { body: result } = await getScrapeResult("scene", monitored.url, true)
+  const scraped = (result as any)?.result
+  if (scraped) {
+    // studio/network are filled from the scrape only while empty, so overview.md values win
+    await updateMonitorUrl(monitored.url, {
+      baseline: nextBaseline(monitored.baseline, scraped),
+      studio: monitored.studio ?? scraped.studio?.name ?? null,
+      network: monitored.network ?? scraped.studio?.parent?.name ?? null,
+    })
+  }
+  return { jobId: (result as any)?.jobId ?? null, error: (result as any)?.error ?? null }
+}
+
 
 router.post("/api/admin/apikey/reactivate", koaValidateAdmin, async (ctx) => {
   const body = (ctx.request as any).body

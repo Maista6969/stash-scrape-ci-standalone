@@ -4,18 +4,19 @@ import axios from "axios";
 import { StashApp } from "./stash-app.js";
 
 // scraper index searcher and installer
-export async function searchScrapers(url: string): Promise<scraperExport[]> {
-  // fetch communityScrapers
-  const communityScrapers = await axios
+export const fetchScraperIndex = (): Promise<scraperExport[]> =>
+  axios
     .get("https://stashapp.github.io/CommunityScrapers/assets/scrapers.json")
     .then((res) => res.data as scraperExport[]);
-  // find scrapers that match URL
-  return communityScrapers.filter((scraper) =>
-    scraper.sites.some((pattern) => url.includes(pattern)),
-  );
+
+export const matchScrapers = (index: scraperExport[], url: string): scraperExport[] =>
+  index.filter((scraper) => scraper.sites.some((pattern) => url.includes(pattern)));
+
+export async function searchScrapers(url: string): Promise<scraperExport[]> {
+  return matchScrapers(await fetchScraperIndex(), url);
 }
 
-const getScraperId = (scraper: scraperExport): string =>
+export const getScraperId = (scraper: scraperExport): string =>
   scraper.filename
     .replace("../scrapers/", "")
     .replace(".yml", "")

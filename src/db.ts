@@ -7,6 +7,7 @@ const client = new MongoClient(uri);
 const db = client.db();
 const sceneCollection = db.collection("scene");
 const apiKeyCollection = db.collection("apiKeys");
+const monitorUrlCollection = db.collection("monitorUrls");
 
 export async function connect() {
   await client.connect();
@@ -21,6 +22,8 @@ export async function createIndex() {
   // apikey
   await apiKeyCollection.createIndex({ apikey: 1 }, { unique: true });
   await apiKeyCollection.createIndex({ discordUserId: 1 }, { unique: true, sparse: true });
+  // monitor
+  await monitorUrlCollection.createIndex({ url: 1 }, { unique: true });
 }
 
 export async function getResult(lookup: string) {
@@ -108,4 +111,63 @@ export const revokeApiKey = async (key: string): Promise<void> => {
 
 export const reactivateApiKey = async (key: string): Promise<void> => {
   await apiKeyCollection.updateOne({ apikey: key }, { $set: { active: true, revokedAt: null } });
+}
+
+// monitor
+export interface monitorUrl {
+  url: string;
+  scraperId: string;
+  studio: string | null;
+  network: string | null;
+  source: "overview" | "manual";
+  addedAt: Date;
+  baseline: string[] | null; // fields present in the last non-regressed scrape
+}
+
+export const listMonitorUrls = async (): Promise<monitorUrl[]> => {
+  return monitorUrlCollection.find().project({ _id: 0 }).toArray() as any;
+}
+
+// $setOnInsert so re-importing an overview.md leaves existing rows and their baselines alone
+export const addMonitorUrls = async (docs: Omit<monitorUrl, "addedAt" | "baseline">[]): Promise<number> => {
+  if (!docs.length) return 0
+  const res = await monitorUrlCollection.bulkWrite(docs.map(doc => ({
+    updateOne: {
+      filter: { url: doc.url },
+      update: { $setOnInsert: { ...doc, addedAt: new Date(), baseline: null } },
+      upsert: true,
+    }
+  })))
+  return res.upsertedCount
+}
+
+export const getMonitorUrl = async (url: string): Promise<monitorUrl | null> => {
+  return monitorUrlCollection.findOne({ url }, { projection: { _id: 0 } }) as any;
+}
+
+export const removeMonitorUrl = async (url: string): Promise<boolean> => {
+  return (await monitorUrlCollection.deleteOne({ url })).deletedCount > 0
+}
+
+export const updateMonitorUrl = async (url: string, fields: Partial<Pick<monitorUrl, "baseline" | "studio" | "network">>): Promise<void> => {
+  await monitorUrlCollection.updateOne({ url }, { $set: fields })
+}
+
+// latest scrape per URL from any source (panel or public users); logs are
+// dropped before the sort so the in-memory sort stays small
+export const getLatestResults = async (urls: string[]) => {
+  return sceneCollection.aggregate([
+    { $match: { url: { $in: urls } } },
+    { $project: { logs: 0, stashInfo: 0 } },
+    { $sort: { _id: -1 } },
+    { $group: {
+      _id: "$url",
+      jobId: { $first: "$jobId" },
+      error: { $first: "$error" },
+      pending: { $first: "$pending" },
+      result: { $first: "$result" },
+      scraperId: { $first: "$runnerInfo.scraperId" },
+      date: { $first: "$runnerInfo.date" },
+    } },
+  ], { allowDiskUse: true }).toArray()
 }
