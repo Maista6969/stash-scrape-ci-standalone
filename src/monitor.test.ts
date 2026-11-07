@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { classify, nextBaseline, parseOverview, presentFields, isValidPackageId, pickDue } from "./monitor.js"
+import { classify, nextBaseline, parseOverview, presentFields, isValidPackageId, pickDue, coverage } from "./monitor.js"
 
 test("presentFields ignores empty values", () => {
   assert.deepEqual(presentFields({ title: "a", details: "", tags: [], studio: { name: "s" }, code: null }), ["studio", "title"])
@@ -68,4 +68,22 @@ test("pickDue serializes and spaces each scraper file", () => {
   assert.deepEqual(pickDue(urls, last, new Set(["D"]), now, 7 * D, H), ["a2", "b1"])
   last.set("a2", now - 30 * 60_000)  // A scraped half an hour ago: a1 is due but must wait out the gap
   assert.deepEqual(pickDue(urls, last, new Set(), now, 7 * D, H), ["b1", "d1"])
+})
+
+test("coverage counts URLs and reached domains per package", () => {
+  const scrapers = [
+    { scraperId: "Net", name: "Net A", hosts: ["a.com", "www.b.com"] },
+    { scraperId: "Net", name: "Net B", hosts: ["c.com"] },
+    { scraperId: "Lone", name: "Lone", hosts: ["lone.com"] },
+  ]
+  const urls = [
+    { url: "https://www.a.com/x", scraperId: "Net" },
+    { url: "https://a.com/y", scraperId: "Net" },
+    { url: "https://b.com/z", scraperId: "Net" },
+    { url: "https://lone.com/1", scraperId: "Other" },
+  ]
+  assert.deepEqual(coverage(scrapers, urls), [
+    { scraperId: "Net", names: ["Net A", "Net B"], hosts: 3, coveredHosts: 2, urls: 3 },
+    { scraperId: "Lone", names: ["Lone"], hosts: 1, coveredHosts: 0, urls: 0 },
+  ])
 })

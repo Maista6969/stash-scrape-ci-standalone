@@ -1,6 +1,6 @@
 // imports
 import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, getLatestResults, monitorUrl } from "./db.js"
-import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue } from "./monitor.js"
+import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds } from "./monitor.js"
 import { searchScrapers, getScraperId, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
@@ -166,6 +166,15 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
       } : null,
     }
   })
+})
+
+// which scene-by-URL scrapers in the repo have no monitored URLs yet, and which of those can be imported
+router.get("/api/admin/monitor/coverage", koaValidateAdmin, async (ctx) => {
+  const [index, urls, overviews] = await Promise.all([fetchScraperIndex(), listMonitorUrls(), fetchOverviewIds()])
+  const scrapers = index
+    .filter(s => s.searchTypes?.scene?.url)
+    .map(s => ({ scraperId: getScraperId(s), name: s.name, hosts: s.hosts ?? [] }))
+  ctx.body = coverage(scrapers, urls).map(pkg => ({ ...pkg, overview: overviews.has(pkg.scraperId) }))
 })
 
 router.post("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {

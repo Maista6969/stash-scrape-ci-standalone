@@ -82,3 +82,36 @@ export const pickDue = (
   }
   return due
 }
+
+const bareHost = (host: string) => host.toLowerCase().replace(/^www\./, "")
+
+// per scraper package: how many monitored URLs it has and how many of its domains they reach
+export const coverage = (
+  scrapers: { scraperId: string, name: string, hosts: string[] }[],
+  urls: { url: string, scraperId: string }[],
+): { scraperId: string, names: string[], hosts: number, coveredHosts: number, urls: number }[] => {
+  const packages = new Map<string, { names: string[], hosts: Set<string> }>()
+  for (const { scraperId, name, hosts } of scrapers) {
+    const pkg = packages.get(scraperId) ?? { names: [], hosts: new Set<string>() }
+    pkg.names.push(name)
+    for (const host of hosts) pkg.hosts.add(bareHost(host))
+    packages.set(scraperId, pkg)
+  }
+  return [...packages].map(([scraperId, { names, hosts }]) => {
+    const own = urls.filter(u => u.scraperId === scraperId)
+    const reached = new Set(own.map(u => bareHost(new URL(u.url).hostname)))
+    return { scraperId, names, hosts: hosts.size, coveredHosts: [...hosts].filter(h => reached.has(h)).length, urls: own.length }
+  })
+}
+
+let overviewCache: { at: number, ids: Set<string> } | null = null
+// one tree listing instead of a request per scraper; cached because unauthenticated GitHub API calls are capped at 60/h
+export const fetchOverviewIds = async (): Promise<Set<string>> => {
+  if (overviewCache && Date.now() - overviewCache.at < 3600_000) return overviewCache.ids
+  const { data } = await axios.get("https://api.github.com/repos/stashapp/CommunityScrapers/git/trees/master?recursive=1")
+  const ids = new Set<string>((data.tree as { path: string }[])
+    .map(t => t.path.match(/^scrapers\/([^/]+)\/overview\.md$/)?.[1])
+    .filter((id): id is string => !!id))
+  overviewCache = { at: Date.now(), ids }
+  return ids
+}

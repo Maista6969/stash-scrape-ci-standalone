@@ -110,6 +110,30 @@
               Enter the admin key and click "Load".
             </div>
           </div>
+
+          <div class="card mt-4 p-3">
+            <div
+              class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3"
+            >
+              <h6 id="coverage-summary" class="mb-0">Coverage</h6>
+              <div class="d-flex gap-2 align-items-center">
+                <input
+                  id="coverage-filter"
+                  type="search"
+                  placeholder="Filter scraper or name"
+                  class="form-control form-control-sm"
+                  style="width: 240px"
+                />
+                <div class="form-check mb-0">
+                  <input id="importable-only" type="checkbox" class="form-check-input" />
+                  <label for="importable-only" class="form-check-label small"
+                    >Has overview.md</label
+                  >
+                </div>
+              </div>
+            </div>
+            <div id="coverage" class="text-secondary small"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -133,6 +157,7 @@
       const isFailing = (u) => u.status === "regressed" || u.status === "error";
 
       let entries = [];
+      let packages = [];
       const openGroups = new Set();
       // kept outside the DOM so a spinner survives the reloads that rebuild every row
       const scraping = new Set();
@@ -195,9 +220,21 @@
         }
         filterInput.addEventListener("input", render);
         failingOnly.addEventListener("change", render);
+        document.getElementById("coverage-filter").addEventListener("input", renderCoverage);
+        document.getElementById("importable-only").addEventListener("change", renderCoverage);
       });
 
       function load() {
+        loadUrls();
+        api("/coverage", "GET")
+          .then((data) => {
+            packages = data;
+            renderCoverage();
+          })
+          .catch((err) => alert(err.message));
+      }
+
+      function loadUrls() {
         api("", "GET")
           .then((data) => {
             entries = data;
@@ -337,6 +374,59 @@
         ]);
       }
 
+      // scene-by-URL scrapers in the repo with no monitored URL yet
+      function renderCoverage() {
+        const withUrls = packages.filter((p) => p.urls).length;
+        const hosts = packages.reduce((n, p) => n + p.hosts, 0);
+        const covered = packages.reduce((n, p) => n + p.coveredHosts, 0);
+        document.getElementById("coverage-summary").textContent =
+          `Coverage: ${withUrls} of ${packages.length} scrapers · ${covered} of ${hosts} domains`;
+
+        const query = document.getElementById("coverage-filter").value.trim().toLowerCase();
+        const importableOnly = document.getElementById("importable-only").checked;
+        const missing = packages
+          .filter((p) => !p.urls)
+          .filter((p) => !importableOnly || p.overview)
+          .filter((p) => !query || [p.scraperId, ...p.names].some((v) => v.toLowerCase().includes(query)))
+          .sort((a, b) => a.scraperId.localeCompare(b.scraperId));
+
+        const container = document.getElementById("coverage");
+        if (!missing.length) {
+          container.textContent = packages.some((p) => !p.urls) ? "Nothing matches the filter." : "Every scraper has at least one URL.";
+          return;
+        }
+        container.replaceChildren(
+          el("div", { className: "mb-2", textContent: `${missing.length} scrapers without URLs` }),
+          el("div", { className: "table-responsive", style: "max-height: 480px" },
+            el("table", { className: "table table-sm align-middle mb-0" }, [
+              el("thead", {}, el("tr", {}, ["Scraper", "Domains", ""].map((h) => el("th", { textContent: h })))),
+              el("tbody", {}, missing.map((p) => {
+                const action = el("td", { className: "text-end" });
+                if (p.overview) {
+                  const button = el("button", { className: "btn btn-sm btn-outline-success", textContent: "Import" });
+                  button.addEventListener("click", () => {
+                    document.getElementById("import-id").value = p.scraperId;
+                    importOverview();
+                  });
+                  action.append(button);
+                } else {
+                  action.append(el("span", { className: "text-secondary", textContent: "no overview.md: add a URL" }));
+                }
+                const names = p.names.filter((n) => n !== p.scraperId);
+                return el("tr", {}, [
+                  el("td", {}, [
+                    el("span", { className: "group-name", textContent: p.scraperId }),
+                    names.length ? el("span", { className: "text-secondary ms-2", textContent: names.join(", ") }) : null,
+                  ]),
+                  el("td", { textContent: p.hosts }),
+                  action,
+                ]);
+              })),
+            ]),
+          ),
+        );
+      }
+
       function importOverview() {
         const input = document.getElementById("import-id");
         const id = input.value.trim();
@@ -385,7 +475,7 @@
           .catch((err) => alert(err.message))
           .finally(() => {
             scraping.delete(url);
-            load();
+            loadUrls();
           });
       }
     </script>
