@@ -231,6 +231,8 @@
           .then((data) => {
             packages = data;
             renderCoverage();
+            // groups show a Reimport button once we know which scrapers have an overview.md
+            render();
           })
           .catch((err) => alert(err.message));
       }
@@ -305,11 +307,22 @@
         details.addEventListener("toggle", () =>
           details.open ? openGroups.add(scraperId) : openGroups.delete(scraperId),
         );
+        let reimportBtn = null;
+        if (packages.some((p) => p.scraperId === scraperId && p.overview)) {
+          reimportBtn = el("button", { className: "btn btn-link btn-sm py-0 ms-2 align-baseline", textContent: "Reimport overview.md" });
+          reimportBtn.addEventListener("click", (event) => {
+            // a click inside <summary> would otherwise toggle the group
+            event.preventDefault();
+            document.getElementById("import-id").value = scraperId;
+            importOverview();
+          });
+        }
         details.append(
           el("summary", { className: "py-1" }, [
             el("span", { className: "group-name", textContent: scraperId }),
             el("span", { className: "text-secondary small ms-2", textContent: `${urls.length} URLs` }),
             ...counts,
+            reimportBtn,
           ]),
           el("div", { className: "table-responsive" },
             el("table", { className: "table table-sm align-middle mb-2" }, [
