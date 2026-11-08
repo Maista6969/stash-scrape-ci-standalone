@@ -71,10 +71,10 @@ function replaceShared(data) {
     }
   }
 
-  if (!data.result?.tags?.[Symbol.iterator]) return;
-  const tagContainer = document.getElementById("tag-list");
-  if (data.result.tags.length) {
+  // no early return: failed scrapes have no tags but still need their logs below
+  if (data.result?.tags?.length) {
     document.getElementById("tag-placeholder").remove();
+    const tagContainer = document.getElementById("tag-list");
     for (const tag of data.result.tags) {
       const newTagLi = document.createElement("li");
       const newTagSpan = document.createElement("span");
