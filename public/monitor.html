@@ -15,6 +15,20 @@
       }
       summary {
         cursor: pointer;
+        list-style: none;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      details.card :is(th, td):first-child {
+        padding-left: var(--bs-card-cap-padding-x);
+      }
+      details.card :is(th, td):last-child {
+        padding-right: var(--bs-card-cap-padding-x);
+      }
+      details.card:not([open]) > .card-header {
+        border-bottom: 0;
+        border-radius: var(--bs-card-inner-border-radius);
       }
       .group-name {
         font-family: var(--bs-font-monospace);
@@ -303,7 +317,7 @@
             }),
           );
 
-        const details = el("details", { className: "mb-2", open: openGroups.has(scraperId) });
+        const details = el("details", { className: "card mb-2", open: openGroups.has(scraperId) });
         details.addEventListener("toggle", () =>
           details.open ? openGroups.add(scraperId) : openGroups.delete(scraperId),
         );
@@ -318,14 +332,14 @@
           });
         }
         details.append(
-          el("summary", { className: "py-1" }, [
+          el("summary", { className: "card-header" }, [
             el("span", { className: "group-name", textContent: scraperId }),
             el("span", { className: "text-secondary small ms-2", textContent: `${urls.length} URLs` }),
             ...counts,
             reimportBtn,
           ]),
           el("div", { className: "table-responsive" },
-            el("table", { className: "table table-sm align-middle mb-2" }, [
+            el("table", { className: "table table-sm align-middle mb-0" }, [
               el("thead", {},
                 el("tr", {}, ["Studio", "URL", "Status", "Last scrape", ""].map((h) =>
                   el("th", { textContent: h }),
