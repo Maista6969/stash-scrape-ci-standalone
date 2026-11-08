@@ -17,6 +17,8 @@ export const classify = (
   if (latest.pending) return { status: "running", missing: [] }
   if (latest.error) return { status: "error", missing: [] }
   const present = presentFields(latest.result)
+  // Stash reports a scrape that found nothing as a success
+  if (!present.length) return { status: "error", missing: baseline ?? [] }
   const missing = (baseline ?? []).filter(f => !present.includes(f))
   return { status: missing.length ? "regressed" : "ok", missing }
 }

@@ -153,13 +153,14 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
   const latest = new Map((await getLatestResults(urls.map(u => u.url))).map(doc => [doc._id, doc]))
   ctx.body = urls.map(u => {
     const doc = latest.get(u.url)
+    const verdict = classify(doc, u.baseline)
     return {
       ...u,
-      ...classify(doc, u.baseline),
+      ...verdict,
       latest: doc ? {
         jobId: doc.jobId,
         date: doc.date,
-        error: doc.error ?? null,
+        error: doc.error ?? (verdict.status === "error" ? "Scrape returned no fields" : null),
         scraperId: doc.scraperId ?? null,
         title: doc.result?.title ?? null,
         studio: doc.result?.studio?.name ?? null,

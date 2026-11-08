@@ -90,3 +90,10 @@ test("coverage counts URLs and reached domains per package", () => {
     { scraperId: "Lone", names: ["Lone"], hosts: 1, coveredHosts: 0, urls: 0 },
   ])
 })
+
+test("an empty result is an error even without a baseline", () => {
+  const empty = { title: null, details: null, tags: [] }
+  assert.deepEqual(classify({ result: empty }, null), { status: "error", missing: [] })
+  assert.deepEqual(classify({ result: empty }, ["title"]), { status: "error", missing: ["title"] })
+  assert.equal(nextBaseline(null, empty), null)
+})

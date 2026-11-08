@@ -1,5 +1,5 @@
 import { getCachedResult, addResult, addPendingResult, completePendingResult, listMonitorUrls, addMonitorUrls, updateMonitorUrl } from "./db.js"
-import { bareHost, nextBaseline } from "./monitor.js"
+import { bareHost, nextBaseline, presentFields } from "./monitor.js"
 import { StashApp } from "./stash-app.js"
 import { genJobID } from "./utils.js"
 import { uploadImage } from "./b2.js"
@@ -50,9 +50,9 @@ const runScrapeJob = async (stash: StashApp, searchResult: { id: string, name: s
 }
 
 // a user's successful scrape of a domain the monitor doesn't cover yet seeds it, using the
-// scrape itself as the baseline; failures are skipped since a bad URL looks the same as a broken scraper
+// scrape itself as the baseline; failed or empty scrapes are skipped since a bad URL looks the same as a broken scraper
 const autoMonitor = async (job: jobResult, url: string) => {
-  if (job.error || !job.result) return
+  if (job.error || !presentFields(job.result as Record<string, unknown> | undefined).length) return
   const host = bareHost(new URL(url).hostname)
   if ((await listMonitorUrls()).some(u => bareHost(new URL(u.url).hostname) === host)) return
   const [scraper] = await searchScrapers(url)
