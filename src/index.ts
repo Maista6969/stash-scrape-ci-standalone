@@ -297,8 +297,8 @@ const runMonitorScrape = async (monitored: monitorUrl): Promise<{ jobId: string 
 const scheduledBusy = new Set<string>()
 // scrapes share one Stash on a small VPS, and unknown scrapers trigger installs, so cap the total
 const MAX_SCHEDULED_SCRAPES = 5
-// per scraper file; 20 min lets one file hold ~500 URLs and still be covered weekly
-const SCRAPER_GAP = 20 * 60_000
+// per scraper file; sites only block bursts of several scrapes within seconds
+const SCRAPER_GAP = 5 * 60_000
 const scheduleTick = async () => {
   const urls = await listMonitorUrls()
   // any stored scrape counts, including public users', so the schedule never piles on top of them
