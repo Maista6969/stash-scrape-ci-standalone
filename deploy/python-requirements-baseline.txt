@@ -12,3 +12,4 @@ fastbencode
 free-proxy
 google-api-python-client
 pycountry
+pycryptodome
