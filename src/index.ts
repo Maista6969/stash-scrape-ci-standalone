@@ -420,7 +420,7 @@ connect()
     // opt-in so local dev never scrapes from a home IP on its own
     if (!process.env.MONITOR_SCHEDULE) return
     // shortcut: in-process timer, fine for one app instance; move to the tester service once lanes exist
-    setInterval(() => scheduleTick().catch(err => console.error("Monitor schedule tick failed:", err)), 5 * 60_000)
+    setInterval(() => scheduleTick().catch(err => console.error("Monitor schedule tick failed:", err)), 60_000)
     console.log("Monitor schedule enabled")
   })
   .catch(err => {
