@@ -41,14 +41,22 @@ export async function uploadImage(base64: string, jobID: string) {
   const [meta, data] = base64.split(";base64,")
   const [_,mimetype] = meta.split("data:")
   const buffer = Buffer.from(data, 'base64')
-  const { data: uploadURLResponse } = await b2.getUploadUrl({ bucketId: process.env.B2_BUCKET_ID! })
-  const { uploadUrl, authorizationToken } = uploadURLResponse
-  await b2.uploadFile({
-    uploadUrl,
-    mime: mimetype,
-    uploadAuthToken: authorizationToken,
-    fileName: jobID,
-    data: buffer
-  })
-  return `${process.env.CDN_URL}/${jobID}`
+  // B2 answers 503 when the assigned upload pod is busy; its docs say to get a new upload URL and
+  // retry (backblaze-b2's built-in axios-retry skips POSTs)
+  for (let attempt = 1; ; attempt++) {
+    const { data: uploadURLResponse } = await b2.getUploadUrl({ bucketId: process.env.B2_BUCKET_ID! })
+    const { uploadUrl, authorizationToken } = uploadURLResponse
+    try {
+      await b2.uploadFile({
+        uploadUrl,
+        mime: mimetype,
+        uploadAuthToken: authorizationToken,
+        fileName: jobID,
+        data: buffer
+      })
+      return `${process.env.CDN_URL}/${jobID}`
+    } catch (err: any) {
+      if (attempt >= 3 || ![500, 503].includes(err.response?.status)) throw err
+    }
+  }
 }

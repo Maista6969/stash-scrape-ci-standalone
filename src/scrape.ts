@@ -30,7 +30,9 @@ const runScrapeJob = async (stash: StashApp, searchResult: { id: string, name: s
   const scraperVersion = await stash.getPkgVersion(searchResult.id)
   // replace image with CDN url
   if (result.result) {
+    // a failed upload keeps the image inline rather than losing the whole scrape
     const imageURL = await uploadImage(result.result.image ?? "", jobId)
+      .catch(err => console.error(`Image upload for ${jobId} failed:`, err.message))
     if (imageURL) result.result.image = imageURL
   }
   return {
@@ -66,7 +68,13 @@ export const getScrapeResult = async (type: string, url: string, rescrape = fals
   if ("error" in searchResult) {
     return { status: 422, body: searchResult }
   }
-  const cachedResult = await runScrapeJob(stash, searchResult, url, genJobID())
+  const jobId = genJobID()
+  // like runSubmittedScrape: an unexpected failure is stored too, so it shows up instead of vanishing
+  const cachedResult: jobResult = await runScrapeJob(stash, searchResult, url, jobId)
+    .catch(err => {
+      console.error(`Scrape ${jobId} failed:`, err)
+      return { jobId, error: (err as Error).message, runnerInfo: { url, scrapeType: "scene", date: new Date().toISOString() }, logs: [] }
+    })
   // failures are stored too — they get a debug page with logs, but
   // getCachedResult skips them so retries still re-scrape
   addResult(cachedResult, url)
