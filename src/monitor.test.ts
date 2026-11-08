@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { classify, nextBaseline, parseOverview, presentFields, isValidPackageId, pickDue, coverage } from "./monitor.js"
+import { classify, nextBaseline, parseOverview, presentFields, isValidPackageId, pickDue, coverage, siblingFields } from "./monitor.js"
 
 test("presentFields ignores empty values", () => {
   assert.deepEqual(presentFields({ title: "a", details: "", tags: [], studio: { name: "s" }, code: null }), ["studio", "title"])
@@ -10,7 +10,7 @@ test("a dropped field stays flagged until it returns", () => {
   let baseline = nextBaseline(null, { title: "a", image: "x" })
   assert.deepEqual(baseline, ["image", "title"])
   const broken = { title: "a" }
-  assert.deepEqual(classify({ result: broken }, baseline), { status: "regressed", missing: ["image"] })
+  assert.deepEqual(classify({ result: broken }, baseline), { status: "regressed", missing: ["image"], suspect: [] })
   baseline = nextBaseline(baseline, broken)
   assert.deepEqual(classify({ result: broken }, baseline).status, "regressed")
   baseline = nextBaseline(baseline, { title: "b", image: "y", date: "2026" })
@@ -93,7 +93,25 @@ test("coverage counts URLs and reached domains per package", () => {
 
 test("an empty result is an error even without a baseline", () => {
   const empty = { title: null, details: null, tags: [] }
-  assert.deepEqual(classify({ result: empty }, null), { status: "error", missing: [] })
-  assert.deepEqual(classify({ result: empty }, ["title"]), { status: "error", missing: ["title"] })
+  assert.deepEqual(classify({ result: empty }, null), { status: "error", missing: [], suspect: [] })
+  assert.deepEqual(classify({ result: empty }, ["title"]), { status: "error", missing: ["title"], suspect: [] })
   assert.equal(nextBaseline(null, empty), null)
+})
+
+test("a field broken since this URL's first scrape is suspect through its siblings", () => {
+  const full = ["date", "details", "image", "title"]
+  // details selector broke before this URL was added, so its own baseline never had it
+  const own = ["date", "image", "title"]
+  const scraped = { date: "d", image: "i", title: "t" }
+  assert.deepEqual(classify({ result: scraped }, own, siblingFields([full, full])),
+    { status: "suspect", missing: [], suspect: ["details"] })
+  // accepting it (the scene really has no details) clears it
+  assert.equal(classify({ result: scraped }, own, siblingFields([full, full]), ["details"]).status, "ok")
+  // an own-baseline drop outranks a sibling hint
+  assert.equal(classify({ result: { date: "d", title: "t" } }, own, full).status, "regressed")
+  // a field one sibling legitimately lacks (e.g. a studio without codes) isn't expected
+  assert.deepEqual(siblingFields([[...full, "code"], full]), full)
+  // one sibling (or none with a baseline) isn't enough to set expectations
+  assert.deepEqual(siblingFields([full]), [])
+  assert.deepEqual(siblingFields([full, null]), [])
 })

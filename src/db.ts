@@ -122,6 +122,7 @@ export interface monitorUrl {
   source: "overview" | "manual" | "auto";
   addedAt: Date;
   baseline: string[] | null; // fields present in the last non-regressed scrape
+  accepted?: string[]; // fields a sibling-based "suspect" flag was dismissed for
 }
 
 export const listMonitorUrls = async (): Promise<monitorUrl[]> => {
@@ -148,6 +149,9 @@ export const getMonitorUrl = async (url: string): Promise<monitorUrl | null> => 
 export const removeMonitorUrl = async (url: string): Promise<boolean> => {
   return (await monitorUrlCollection.deleteOne({ url })).deletedCount > 0
 }
+
+export const acceptMonitorFields = async (url: string, fields: string[]): Promise<boolean> =>
+  (await monitorUrlCollection.updateOne({ url }, { $addToSet: { accepted: { $each: fields } } })).matchedCount > 0
 
 export const updateMonitorUrl = async (url: string, fields: Partial<Pick<monitorUrl, "baseline" | "studio" | "network">>): Promise<void> => {
   await monitorUrlCollection.updateOne({ url }, { $set: fields })

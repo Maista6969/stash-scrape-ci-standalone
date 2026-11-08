@@ -1,6 +1,6 @@
 import axios from "axios"
 
-export type monitorStatus = "never" | "running" | "error" | "regressed" | "ok"
+export type monitorStatus = "never" | "running" | "error" | "regressed" | "suspect" | "ok"
 
 // fields a scene result actually returned; empty strings and arrays count as missing
 export const presentFields = (result: Record<string, unknown> | null | undefined): string[] =>
@@ -9,19 +9,33 @@ export const presentFields = (result: Record<string, unknown> | null | undefined
     .map(([k]) => k)
     .sort()
 
+// missing: fields this URL's own baseline had (a regression). suspect: fields every sibling URL of
+// its scraper returns but this one never has, e.g. a field already broken when this URL's baseline
+// formed; only a hint, since a scene can genuinely lack a field, so accepted ones are ignored
 export const classify = (
   latest: { error?: string | null, pending?: boolean | null, result?: Record<string, unknown> | null } | undefined,
   baseline: string[] | null,
-): { status: monitorStatus, missing: string[] } => {
-  if (!latest) return { status: "never", missing: [] }
-  if (latest.pending) return { status: "running", missing: [] }
-  if (latest.error) return { status: "error", missing: [] }
+  siblings: string[] = [],
+  accepted: string[] = [],
+): { status: monitorStatus, missing: string[], suspect: string[] } => {
+  if (!latest) return { status: "never", missing: [], suspect: [] }
+  if (latest.pending) return { status: "running", missing: [], suspect: [] }
+  if (latest.error) return { status: "error", missing: [], suspect: [] }
   const present = presentFields(latest.result)
   // Stash reports a scrape that found nothing as a success
-  if (!present.length) return { status: "error", missing: baseline ?? [] }
+  if (!present.length) return { status: "error", missing: baseline ?? [], suspect: [] }
   const missing = (baseline ?? []).filter(f => !present.includes(f))
-  return { status: missing.length ? "regressed" : "ok", missing }
+  const suspect = siblings.filter(f => !present.includes(f) && !baseline?.includes(f) && !accepted.includes(f))
+  return { status: missing.length ? "regressed" : suspect.length ? "suspect" : "ok", missing, suspect }
 }
+
+// fields in every sibling's baseline; needs two siblings so one URL can't speak for a whole scraper
+export const siblingFields = (siblingBaselines: (string[] | null)[]): string[] => {
+  const known = siblingBaselines.filter((b): b is string[] => !!b?.length)
+  if (known.length < 2) return []
+  return known.reduce((common, b) => common.filter(f => b.includes(f)))
+}
+
 
 // only a non-regressed scrape moves the baseline, so a dropped field stays
 // flagged until it comes back or the URL is removed and re-added

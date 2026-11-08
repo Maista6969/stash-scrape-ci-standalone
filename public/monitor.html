@@ -149,6 +149,7 @@
 
       const STATUS = {
         regressed: { badge: "text-bg-warning", label: "Regressed" },
+        suspect: { badge: "text-bg-primary", label: "Suspect" },
         error: { badge: "text-bg-danger", label: "Error" },
         running: { badge: "text-bg-info", label: "Running" },
         never: { badge: "text-bg-secondary", label: "Never scraped" },
@@ -330,6 +331,15 @@
         if (u.missing.length) {
           statusCell.append(el("div", { className: "missing text-warning", textContent: `missing: ${u.missing.join(", ")}` }));
         }
+        // a hint, not a failure: the scene may genuinely lack the field
+        if (u.suspect.length) {
+          const acceptBtn = el("button", { className: "btn btn-link btn-sm p-0 ms-1 align-baseline", textContent: "Accept", title: "This scene genuinely lacks these fields" });
+          acceptBtn.addEventListener("click", () => acceptFields(u.url, u.suspect));
+          statusCell.append(el("div", { className: "missing text-primary" }, [
+            el("span", { textContent: `others have: ${u.suspect.join(", ")}` }),
+            acceptBtn,
+          ]));
+        }
         if (u.latest?.error) {
           statusCell.append(el("div", { className: "small text-danger text-truncate", style: "max-width: 260px", title: u.latest.error, textContent: u.latest.error }));
         }
@@ -458,6 +468,13 @@
             openGroups.add(scraperId);
             load();
           })
+          .catch((err) => alert(err.message));
+      }
+
+      function acceptFields(url, fields) {
+        if (!confirm(`Stop expecting ${fields.join(", ")} for ${url}?`)) return;
+        api("/accept", "POST", { url, fields })
+          .then(loadUrls)
           .catch((err) => alert(err.message));
       }
 

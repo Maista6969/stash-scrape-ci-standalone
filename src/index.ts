@@ -1,6 +1,6 @@
 // imports
-import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, getLatestResults, monitorUrl } from "./db.js"
-import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds } from "./monitor.js"
+import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, getLatestResults, monitorUrl } from "./db.js"
+import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields } from "./monitor.js"
 import { searchScrapers, getScraperId, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
@@ -153,7 +153,8 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
   const latest = new Map((await getLatestResults(urls.map(u => u.url))).map(doc => [doc._id, doc]))
   ctx.body = urls.map(u => {
     const doc = latest.get(u.url)
-    const verdict = classify(doc, u.baseline)
+    const siblings = urls.filter(s => s.scraperId === u.scraperId && s.url !== u.url).map(s => s.baseline)
+    const verdict = classify(doc, u.baseline, siblingFields(siblings), u.accepted)
     return {
       ...u,
       ...verdict,
@@ -200,6 +201,22 @@ router.post("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
   }])
   // Stash picks randomly between overlapping scrapers, so flag it rather than guess
   ctx.body = { added, scraperId: matched[0], overlap: matched.length > 1 ? matched : null }
+})
+
+router.post("/api/admin/monitor/accept", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  const fields = body?.fields
+  if (!body?.url || !Array.isArray(fields) || !fields.length || !fields.every(f => typeof f === "string" && /^\w{1,40}$/.test(f))) {
+    ctx.status = 400
+    ctx.body = 'A URL and a list of field names are required'
+    return
+  }
+  if (!await acceptMonitorFields(body.url, fields)) {
+    ctx.status = 404
+    ctx.body = 'URL is not monitored'
+    return
+  }
+  ctx.body = { accepted: fields }
 })
 
 router.delete("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
