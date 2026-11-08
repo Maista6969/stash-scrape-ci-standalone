@@ -119,7 +119,7 @@ export interface monitorUrl {
   scraperId: string;
   studio: string | null;
   network: string | null;
-  source: "overview" | "manual";
+  source: "overview" | "manual" | "auto";
   addedAt: Date;
   baseline: string[] | null; // fields present in the last non-regressed scrape
 }

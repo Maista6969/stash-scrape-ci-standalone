@@ -85,7 +85,7 @@ export const pickDue = (
   return due.sort((a, b) => a.last - b.last).slice(0, Math.max(0, slots)).map(e => e.url)
 }
 
-const bareHost = (host: string) => host.toLowerCase().replace(/^www\./, "")
+export const bareHost = (host: string) => host.toLowerCase().replace(/^www\./, "")
 
 // per scraper package: how many monitored URLs it has and how many of its domains they reach
 export const coverage = (

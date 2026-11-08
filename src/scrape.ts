@@ -1,9 +1,10 @@
-import { getCachedResult, addResult, addPendingResult, completePendingResult } from "./db.js"
+import { getCachedResult, addResult, addPendingResult, completePendingResult, listMonitorUrls, addMonitorUrls, updateMonitorUrl } from "./db.js"
+import { bareHost, nextBaseline } from "./monitor.js"
 import { StashApp } from "./stash-app.js"
 import { genJobID } from "./utils.js"
 import { uploadImage } from "./b2.js"
 import { consumeKeyCredit, keyStatus } from "./apikey.js"
-import { searchScrapers } from "./scraper-index.js"
+import { searchScrapers, getScraperId } from "./scraper-index.js"
 import { jobResult, runnerInfo } from "../types/jobResult.js"
 
 // apiKey is only passed by the HTTP routes — Discord commands are role-gated,
@@ -48,6 +49,26 @@ const runScrapeJob = async (stash: StashApp, searchResult: { id: string, name: s
   }
 }
 
+// a user's successful scrape of a domain the monitor doesn't cover yet seeds it, using the
+// scrape itself as the baseline; failures are skipped since a bad URL looks the same as a broken scraper
+const autoMonitor = async (job: jobResult, url: string) => {
+  if (job.error || !job.result) return
+  const host = bareHost(new URL(url).hostname)
+  if ((await listMonitorUrls()).some(u => bareHost(new URL(u.url).hostname) === host)) return
+  const [scraper] = await searchScrapers(url)
+  if (!scraper) return
+  const scraped = job.result as any
+  if (await addMonitorUrls([{
+    url,
+    scraperId: getScraperId(scraper),
+    studio: scraped.studio?.name ?? null,
+    network: scraped.studio?.parent?.name ?? null,
+    source: "auto",
+  }])) await updateMonitorUrl(url, { baseline: nextBaseline(null, scraped) })
+}
+const autoMonitorInBackground = (job: jobResult, url: string) =>
+  autoMonitor(job, url).catch(err => console.error(`Auto-monitoring ${url} failed:`, err))
+
 // synchronous mode: shared by the HTTP API (default) and the Discord
 // /interactions route; responds only once the scrape has finished
 export const getScrapeResult = async (type: string, url: string, rescrape = false, apiKey?: string): Promise<{ status: number, body: Object | string }> => {
@@ -78,6 +99,7 @@ export const getScrapeResult = async (type: string, url: string, rescrape = fals
   // failures are stored too — they get a debug page with logs, but
   // getCachedResult skips them so retries still re-scrape
   addResult(cachedResult, url)
+  autoMonitorInBackground(cachedResult, url)
   return { status: cachedResult.error ? 500 : 200, body: cachedResult }
 }
 
@@ -114,6 +136,7 @@ const runSubmittedScrape = async (jobId: string, url: string, jobRunnerInfo: run
       ? { jobId, error: searchResult.error, runnerInfo: jobRunnerInfo, logs: [] }
       : await runScrapeJob(stash, searchResult, url, jobId)
     await completePendingResult(jobId, cachedResult, url)
+    autoMonitorInBackground(cachedResult, url)
   } catch (err) {
     console.error(`Background scrape ${jobId} failed:`, err)
     await completePendingResult(jobId, { jobId, error: (err as Error).message, runnerInfo: jobRunnerInfo, logs: [] }, url)
