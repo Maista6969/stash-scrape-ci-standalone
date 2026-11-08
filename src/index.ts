@@ -199,8 +199,10 @@ router.post("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
     network: null,
     source: "manual",
   }])
+  // the first scrape sets the baseline and fills in studio and network
+  const scrape = added ? await runMonitorScrape((await getMonitorUrl(body.url))!) : null
   // Stash picks randomly between overlapping scrapers, so flag it rather than guess
-  ctx.body = { added, scraperId: matched[0], overlap: matched.length > 1 ? matched : null }
+  ctx.body = { added, scraperId: matched[0], overlap: matched.length > 1 ? matched : null, scrape }
 })
 
 router.post("/api/admin/monitor/accept", koaValidateAdmin, async (ctx) => {

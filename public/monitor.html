@@ -90,7 +90,7 @@
                     class="form-control"
                     autocomplete="off"
                   />
-                  <button id="add" class="btn btn-success">Add</button>
+                  <button id="add" class="btn btn-success position-relative"><span>Add</span></button>
                 </div>
               </div>
             </div>
@@ -488,17 +488,28 @@
         const urlInput = document.getElementById("add-url");
         const url = urlInput.value.trim();
         if (!url) return alert("URL is required.");
+        const addBtn = document.getElementById("add");
+        // the request also runs the first scrape, so show it as busy without changing the button's width
+        addBtn.disabled = true;
+        addBtn.firstChild.classList.add("invisible");
+        const spinner = el("span", { className: "position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" },
+          el("span", { className: "spinner-border spinner-border-sm", role: "status", ariaLabel: "Adding" }),
+        );
+        addBtn.append(spinner);
         api("/url", "POST", { url })
           .then(({ added, scraperId, overlap }) => {
             if (!added) alert("That URL is already monitored.");
-            // the first scrape fills in studio and network
-            else scrapeUrl(url);
             if (overlap) alert(`Several scrapers match this URL (${overlap.join(", ")}); Stash will pick one at random. Filed under ${scraperId}.`);
             urlInput.value = "";
             openGroups.add(scraperId);
             load();
           })
-          .catch((err) => alert(err.message));
+          .catch((err) => alert(err.message))
+          .finally(() => {
+            spinner.remove();
+            addBtn.firstChild.classList.remove("invisible");
+            addBtn.disabled = false;
+          });
       }
 
       function acceptFields(url, fields) {
