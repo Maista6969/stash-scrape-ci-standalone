@@ -388,9 +388,12 @@
             u.network ? el("div", { className: "small text-secondary", textContent: u.network }) : null,
             u.studio || el("span", { className: "text-secondary", textContent: u.latest?.studio ?? "—" }),
           ]),
-          el("td", { className: "url-cell" },
+          el("td", { className: "url-cell" }, [
             el("a", { href: u.url, target: "_blank", rel: "noopener noreferrer", className: "text-truncate d-inline-block", textContent: u.url }),
-          ),
+            u.droppedFromOverview
+              ? el("div", { className: "small text-warning", textContent: `no longer in ${u.overview}/overview.md` })
+              : null,
+          ]),
           statusCell,
           lastCell,
           el("td", { className: "text-nowrap" }, el("div", { className: "d-flex gap-1" }, [scrapeBtn, removeBtn])),
@@ -457,10 +460,10 @@
         const button = document.getElementById("import");
         button.disabled = true;
         api("/import", "POST", { id })
-          .then(({ found, added }) => {
+          .then(({ found, added, dropped }) => {
             input.value = "";
             openGroups.add(id);
-            alert(`${id}: ${found} URLs in overview.md, ${added} new.`);
+            alert(`${id}: ${found} URLs in overview.md, ${added} new` + (dropped ? `, ${dropped} no longer listed (flagged, not removed).` : "."));
             load();
           })
           .catch((err) => alert(err.message))

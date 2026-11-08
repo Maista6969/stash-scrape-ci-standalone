@@ -123,6 +123,8 @@ export interface monitorUrl {
   addedAt: Date;
   baseline: string[] | null; // fields present in the last non-regressed scrape
   accepted?: string[]; // fields a sibling-based "suspect" flag was dismissed for
+  overview?: string; // package whose overview.md listed this URL (an overview can list other scrapers' URLs)
+  droppedFromOverview?: boolean;
 }
 
 export const listMonitorUrls = async (): Promise<monitorUrl[]> => {
@@ -140,6 +142,20 @@ export const addMonitorUrls = async (docs: Omit<monitorUrl, "addedAt" | "baselin
     }
   })))
   return res.upsertedCount
+}
+
+// after an import: rows the overview still lists are tied to it and unflagged, rows tied to it
+// that it no longer lists are flagged rather than deleted, since a maintainer may drop a row by mistake
+export const syncOverviewRows = async (overview: string, urls: string[]): Promise<number> => {
+  await monitorUrlCollection.updateMany(
+    { url: { $in: urls }, source: "overview" },
+    { $set: { overview, droppedFromOverview: false } },
+  )
+  const dropped = await monitorUrlCollection.updateMany(
+    { overview, url: { $nin: urls } },
+    { $set: { droppedFromOverview: true } },
+  )
+  return dropped.matchedCount
 }
 
 export const getMonitorUrl = async (url: string): Promise<monitorUrl | null> => {

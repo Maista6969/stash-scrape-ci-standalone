@@ -1,5 +1,5 @@
 // imports
-import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, getLatestResults, monitorUrl } from "./db.js"
+import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, syncOverviewRows, getLatestResults, monitorUrl } from "./db.js"
 import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields } from "./monitor.js"
 import { searchScrapers, getScraperId, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
@@ -258,11 +258,12 @@ router.post("/api/admin/monitor/import", koaValidateAdmin, async (ctx) => {
   const docs = rows.map(row => {
     const matched = matchScrapers(index, row.url).map(getScraperId)
     const scraperId = matched.length && !matched.includes(body.id) ? matched[0] : body.id
-    return { ...row, scraperId, source: "overview" as const }
+    return { ...row, scraperId, source: "overview" as const, overview: body.id }
   })
   const added = await addMonitorUrls(docs)
+  const dropped = await syncOverviewRows(body.id, docs.map(doc => doc.url))
   const elsewhere = docs.filter(doc => doc.scraperId !== body.id).length
-  ctx.body = { found: rows.length, added, elsewhere }
+  ctx.body = { found: rows.length, added, elsewhere, dropped }
 })
 
 router.post("/api/admin/monitor/scrape", koaValidateAdmin, async (ctx) => {
