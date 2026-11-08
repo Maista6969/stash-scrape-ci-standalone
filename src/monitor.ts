@@ -60,7 +60,8 @@ export const fetchOverview = async (scraperId: string): Promise<string | null> =
 }
 
 // a scraper file is one backend: at most one of its URLs per pick, none while it's busy or
-// scraped within gapMs, and of its URLs the one scraped longest ago once intervalMs old
+// scraped within gapMs, and of its URLs the one scraped longest ago once intervalMs old.
+// slots caps the pick so the scraping host isn't flooded; the most overdue go first
 export const pickDue = (
   urls: { url: string, scraperId: string }[],
   lastScraped: Map<string, number>,
@@ -68,19 +69,20 @@ export const pickDue = (
   now: number,
   intervalMs: number,
   gapMs: number,
+  slots: number,
 ): string[] => {
   const byScraper = new Map<string, { url: string, last: number }[]>()
   for (const { url, scraperId } of urls) {
     byScraper.set(scraperId, [...byScraper.get(scraperId) ?? [], { url, last: lastScraped.get(url) ?? 0 }])
   }
-  const due: string[] = []
+  const due: { url: string, last: number }[] = []
   for (const [scraperId, entries] of byScraper) {
     if (busy.has(scraperId)) continue
     if (now - Math.max(...entries.map(e => e.last)) < gapMs) continue
     const oldest = entries.reduce((a, b) => (b.last < a.last ? b : a))
-    if (now - oldest.last >= intervalMs) due.push(oldest.url)
+    if (now - oldest.last >= intervalMs) due.push(oldest)
   }
-  return due
+  return due.sort((a, b) => a.last - b.last).slice(0, Math.max(0, slots)).map(e => e.url)
 }
 
 const bareHost = (host: string) => host.toLowerCase().replace(/^www\./, "")

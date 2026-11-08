@@ -276,12 +276,14 @@ const runMonitorScrape = async (monitored: monitorUrl): Promise<{ jobId: string 
 
 // scraper files with a scheduled scrape in flight
 const scheduledBusy = new Set<string>()
+// scrapes share one Stash on a small VPS, and unknown scrapers trigger installs, so cap the total
+const MAX_SCHEDULED_SCRAPES = 5
 const scheduleTick = async () => {
   const urls = await listMonitorUrls()
   // any stored scrape counts, including public users', so the schedule never piles on top of them
   const lastScraped = new Map((await getLatestResults(urls.map(u => u.url))).map(doc => [doc._id, Date.parse(doc.date) || 0]))
   const DAY = 24 * 3600_000
-  for (const url of pickDue(urls, lastScraped, scheduledBusy, Date.now(), 7 * DAY, DAY / 24)) {
+  for (const url of pickDue(urls, lastScraped, scheduledBusy, Date.now(), 7 * DAY, DAY / 24, MAX_SCHEDULED_SCRAPES - scheduledBusy.size)) {
     const monitored = urls.find(u => u.url === url)!
     scheduledBusy.add(monitored.scraperId)
     runMonitorScrape(monitored)

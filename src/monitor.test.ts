@@ -65,9 +65,12 @@ test("pickDue serializes and spaces each scraper file", () => {
     ["b1", now - 8 * D],             // B: due
     ["c1", now - 3 * D],             // C: scraped within the week
   ])
-  assert.deepEqual(pickDue(urls, last, new Set(["D"]), now, 7 * D, H), ["a2", "b1"])
+  assert.deepEqual(pickDue(urls, last, new Set(["D"]), now, 7 * D, H, 5), ["a2", "b1"])
   last.set("a2", now - 30 * 60_000)  // A scraped half an hour ago: a1 is due but must wait out the gap
-  assert.deepEqual(pickDue(urls, last, new Set(), now, 7 * D, H), ["b1", "d1"])
+  assert.deepEqual(pickDue(urls, last, new Set(), now, 7 * D, H, 5), ["d1", "b1"])
+  // slots cap the pick, most overdue first (d1 was never scraped)
+  assert.deepEqual(pickDue(urls, last, new Set(), now, 7 * D, H, 1), ["d1"])
+  assert.deepEqual(pickDue(urls, last, new Set(), now, 7 * D, H, 0), [])
 })
 
 test("coverage counts URLs and reached domains per package", () => {
