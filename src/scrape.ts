@@ -1,7 +1,7 @@
 import { getCachedResult, addResult, addPendingResult, completePendingResult, listMonitorUrls, addMonitorUrls, updateMonitorUrl } from "./db.js"
 import { bareHost, nextBaseline, presentFields } from "./monitor.js"
 import { StashApp } from "./stash-app.js"
-import { genJobID } from "./utils.js"
+import { genJobID, serialized } from "./utils.js"
 import { uploadImage } from "./b2.js"
 import { consumeKeyCredit, keyStatus } from "./apikey.js"
 import { searchScrapers, getScraperId } from "./scraper-index.js"
@@ -22,11 +22,11 @@ const checkCredit = async (apiKey?: string): Promise<{ status: number, body: str
 const runScrapeJob = async (stash: StashApp, searchResult: { id: string, name: string }, url: string, jobId: string): Promise<jobResult> => {
   // check update packages
   await stash.checkUpdatePackages()
-  // set start time
-  const startTime = new Date()
-  const result = await stash.startScrape(url)
-  // get logs
-  const logs = await stash.getLogs(startTime)
+  const { result, logs } = await serialized(async () => {
+    const start = new Date()
+    const result = await stash.startScrape(url)
+    return { result, logs: await stash.getLogs(start, new Date()) }
+  })
   // get package versions
   const scraperVersion = await stash.getPkgVersion(searchResult.id)
   // replace image with CDN url

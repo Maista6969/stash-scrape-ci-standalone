@@ -60,3 +60,10 @@ export const genID = (len = 12): string => {
 }
 
 export const genJobID = (): JobID => `${genID(12)}1` as JobID
+// runs fn after every previously serialized call has settled, success or not
+let queue: Promise<unknown> = Promise.resolve()
+export const serialized = <T>(fn: () => Promise<T>): Promise<T> => {
+  const run = queue.then(fn, fn)
+  queue = run.catch(() => {})
+  return run
+}

@@ -13,10 +13,11 @@ export class StashApp {
     this.STASH_API_KEY = process.env.STASH_API_KEY
   }
 
-  callGQL = (query: string, variables = {}) =>
+  callGQL = (query: string, variables = {}, timeout = 0) =>
     axios.post(this.STASH_URL, {
       query, variables
     }, {
+      timeout,
       headers: {
         'Content-Type': 'application/json',
         'ApiKey': this.STASH_API_KEY
@@ -116,9 +117,13 @@ export class StashApp {
 
   // get log cache (30 items)
   // https://github.com/stashapp/stash/blob/12c4e1f61c49cd4e625a62e9bde7df9e02c0c47c/internal/log/logger.go#L113
-  getLogs = async (startTime: Date): Promise<logEntry[]> => this.callGQL(`{ logs { time level message } }`)
+  // the log is shared by every scrape, so this only isolates one scrape's lines while scrapes are serialized
+  getLogs = async (start: Date, end: Date): Promise<logEntry[]> => this.callGQL(`{ logs { time level message } }`)
     .then(data => data.logs.reverse()) // reverse to get latest first
-    .then((logs: logEntry[]) => logs.filter(log => new Date(log.time).getTime() >= startTime.getTime() - 2000)) // filter logs after start time
+    .then((logs: logEntry[]) => logs.filter(log => {
+      const t = new Date(log.time).getTime()
+      return t >= start.getTime() && t <= end.getTime()
+    }))
 
   updateUA = async (userAgent: String): Promise<void> => this.callGQL(`mutation ($userAgent: String!) {
     configureScraping(input: { scraperUserAgent: $userAgent })
@@ -129,7 +134,8 @@ export class StashApp {
   }`)
 
   scrape = (url: string): Promise<sceneResult> =>
-    this.callGQL(sceneQuery, { url })
+    // a hung scrape would otherwise hold the scrape lock forever
+    this.callGQL(sceneQuery, { url }, 60_000)
       .then(data => data.scrapeSceneURL)
 
   async startScrape(url: string): Promise<partialJobResult> {
