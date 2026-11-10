@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { classify, nextBaseline, parseOverview, presentFields, isValidPackageId, pickDue, coverage, siblingFields } from "./monitor.js"
+import { applySnooze, classify, nextBaseline, parseOverview, presentFields, isValidPackageId, pickDue, coverage, siblingFields } from "./monitor.js"
 
 test("presentFields ignores empty values", () => {
   assert.deepEqual(presentFields({ title: "a", details: "", tags: [], studio: { name: "s" }, code: null }), ["studio", "title"])
@@ -114,4 +114,18 @@ test("a field broken since this URL's first scrape is suspect through its siblin
   // one sibling (or none with a baseline) isn't enough to set expectations
   assert.deepEqual(siblingFields([full]), [])
   assert.deepEqual(siblingFields([full, null]), [])
+})
+
+test("a snooze hides failures until it lapses and never touches healthy states", () => {
+  const now = new Date("2026-11-10T12:00:00Z")
+  const later = new Date("2026-11-11T12:00:00Z")
+  const earlier = new Date("2026-11-09T12:00:00Z")
+  const failing = { status: "error" as const, missing: [], suspect: [] }
+  assert.equal(applySnooze(failing, later, now).status, "snoozed")
+  assert.equal(applySnooze({ ...failing, status: "regressed" }, later, now).status, "snoozed")
+  assert.equal(applySnooze({ ...failing, status: "suspect" }, later, now).status, "snoozed")
+  assert.equal(applySnooze(failing, earlier, now).status, "error")
+  assert.equal(applySnooze(failing, null, now).status, "error")
+  assert.equal(applySnooze({ ...failing, status: "ok" }, later, now).status, "ok")
+  assert.equal(applySnooze({ ...failing, status: "running" }, later, now).status, "running")
 })

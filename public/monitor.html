@@ -168,7 +168,9 @@
         running: { badge: "text-bg-info", label: "Running" },
         never: { badge: "text-bg-secondary", label: "Never scraped" },
         ok: { badge: "text-bg-success", label: "OK" },
+        snoozed: { badge: "text-bg-secondary", label: "Snoozed" },
       };
+      const SNOOZE_DAYS = [1, 7, 14];
       const isFailing = (u) => u.status === "regressed" || u.status === "error";
 
       let entries = [];
@@ -321,6 +323,11 @@
         details.addEventListener("toggle", () =>
           details.open ? openGroups.add(scraperId) : openGroups.delete(scraperId),
         );
+        // the whole scraper file, healthy URLs included, so a later failure stays quiet until the date
+        const snoozeCtl = [
+          urls.some((u) => isFailing(u) || u.suspect.length) ? snoozeSelect((days) => snooze({ scraperId }, days), "Snooze all…") : null,
+          urls.some((u) => u.status === "snoozed") ? linkButton("Unsnooze all", () => snooze({ scraperId }, null)) : null,
+        ];
         let reimportBtn = null;
         if (packages.some((p) => p.scraperId === scraperId && p.overview)) {
           reimportBtn = el("button", { className: "btn btn-link btn-sm py-0 ms-2 align-baseline", textContent: "Reimport overview.md" });
@@ -336,6 +343,7 @@
             el("span", { className: "group-name", textContent: scraperId }),
             el("span", { className: "text-secondary small ms-2", textContent: `${urls.length} URLs` }),
             ...counts,
+            ...snoozeCtl,
             reimportBtn,
           ]),
           el("div", { className: "table-responsive" },
@@ -366,6 +374,14 @@
             el("span", { textContent: `others have: ${u.suspect.join(", ")}` }),
             acceptBtn,
           ]));
+        }
+        if (u.status === "snoozed") {
+          statusCell.append(el("div", { className: "small text-secondary" }, [
+            el("span", { textContent: `until ${formatDate(u.snoozedUntil)}` }),
+            linkButton("Unsnooze", () => snooze({ url: u.url }, null)),
+          ]));
+        } else if (isFailing(u) || u.suspect.length) {
+          statusCell.append(snoozeSelect((days) => snooze({ url: u.url }, days), "Snooze…"));
         }
         if (u.latest?.error) {
           statusCell.append(el("div", { className: "small text-danger text-truncate", style: "max-width: 260px", title: u.latest.error, textContent: u.latest.error }));
@@ -510,6 +526,41 @@
             addBtn.firstChild.classList.remove("invisible");
             addBtn.disabled = false;
           });
+      }
+
+      function linkButton(text, onClick) {
+        const btn = el("button", { className: "btn btn-link btn-sm p-0 ms-1 align-baseline", textContent: text });
+        btn.addEventListener("click", (event) => {
+          // a click inside <summary> would otherwise toggle the group
+          event.preventDefault();
+          onClick();
+        });
+        return btn;
+      }
+
+      // a native select: Bootstrap's dropdown JS isn't loaded, and it works inside <summary>
+      function snoozeSelect(onPick, placeholder) {
+        const select = el("select", { className: "form-select form-select-sm w-auto d-inline-block ms-1 py-0", title: "Hide this failure for a while; scraping continues" }, [
+          el("option", { value: "", textContent: placeholder, selected: true }),
+          ...SNOOZE_DAYS.map((d) => el("option", { value: String(d), textContent: `${d}d` })),
+          el("option", { value: "custom", textContent: "Custom…" }),
+        ]);
+        select.addEventListener("click", (event) => event.preventDefault());
+        select.addEventListener("change", () => {
+          const value = select.value;
+          select.value = "";
+          const days = value === "custom" ? Number(prompt("Snooze for how many days?", "30")) : Number(value);
+          if (days > 0) onPick(days);
+        });
+        return select;
+      }
+
+      // target is { url } or { scraperId }; days null lifts the snooze
+      function snooze(target, days) {
+        const until = days === null ? null : new Date(Date.now() + days * 86_400_000).toISOString();
+        api("/snooze", "POST", { ...target, until })
+          .then(loadUrls)
+          .catch((err) => alert(err.message));
       }
 
       function acceptFields(url, fields) {

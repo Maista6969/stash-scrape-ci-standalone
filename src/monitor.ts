@@ -1,6 +1,6 @@
 import axios from "axios"
 
-export type monitorStatus = "never" | "running" | "error" | "regressed" | "suspect" | "ok"
+export type monitorStatus = "never" | "running" | "error" | "regressed" | "suspect" | "ok" | "snoozed"
 
 // fields a scene result actually returned; empty strings and arrays count as missing
 export const presentFields = (result: Record<string, unknown> | null | undefined): string[] =>
@@ -28,6 +28,12 @@ export const classify = (
   const suspect = siblings.filter(f => !present.includes(f) && !baseline?.includes(f) && !accepted.includes(f))
   return { status: missing.length ? "regressed" : suspect.length ? "suspect" : "ok", missing, suspect }
 }
+
+// a snoozed failure is hidden, not fixed: the URL keeps being scraped and the flag returns when the snooze lapses
+export const applySnooze = <T extends { status: monitorStatus }>(verdict: T, snoozedUntil: Date | null | undefined, now = new Date()): T =>
+  snoozedUntil && snoozedUntil > now && ["error", "regressed", "suspect"].includes(verdict.status)
+    ? { ...verdict, status: "snoozed" }
+    : verdict
 
 // fields in every sibling's baseline; needs two siblings so one URL can't speak for a whole scraper
 export const siblingFields = (siblingBaselines: (string[] | null)[]): string[] => {

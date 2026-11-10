@@ -125,6 +125,7 @@ export interface monitorUrl {
   accepted?: string[]; // fields a sibling-based "suspect" flag was dismissed for
   overview?: string; // package whose overview.md listed this URL (an overview can list other scrapers' URLs)
   droppedFromOverview?: boolean;
+  snoozedUntil?: Date | null; // failures are hidden, not fixed, until then; scraping continues
 }
 
 export const listMonitorUrls = async (): Promise<monitorUrl[]> => {
@@ -165,6 +166,9 @@ export const getMonitorUrl = async (url: string): Promise<monitorUrl | null> => 
 export const removeMonitorUrl = async (url: string): Promise<boolean> => {
   return (await monitorUrlCollection.deleteOne({ url })).deletedCount > 0
 }
+
+export const snoozeMonitorUrls = async (filter: { url: string } | { scraperId: string }, until: Date | null): Promise<number> =>
+  (await monitorUrlCollection.updateMany(filter, { $set: { snoozedUntil: until } })).matchedCount
 
 export const acceptMonitorFields = async (url: string, fields: string[]): Promise<boolean> =>
   (await monitorUrlCollection.updateOne({ url }, { $addToSet: { accepted: { $each: fields } } })).matchedCount > 0

@@ -1,6 +1,6 @@
 // imports
-import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, syncOverviewRows, getLatestResults, monitorUrl } from "./db.js"
-import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields } from "./monitor.js"
+import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, snoozeMonitorUrls, syncOverviewRows, getLatestResults, monitorUrl } from "./db.js"
+import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields, applySnooze } from "./monitor.js"
 import { searchScrapers, getScraperId, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
@@ -154,7 +154,7 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
   ctx.body = urls.map(u => {
     const doc = latest.get(u.url)
     const siblings = urls.filter(s => s.scraperId === u.scraperId && s.url !== u.url).map(s => s.baseline)
-    const verdict = classify(doc, u.baseline, siblingFields(siblings), u.accepted)
+    const verdict = applySnooze(classify(doc, u.baseline, siblingFields(siblings), u.accepted), u.snoozedUntil)
     return {
       ...u,
       ...verdict,
@@ -219,6 +219,24 @@ router.post("/api/admin/monitor/accept", koaValidateAdmin, async (ctx) => {
     return
   }
   ctx.body = { accepted: fields }
+})
+
+// until: ISO date to snooze until, null to unsnooze; one of url or scraperId picks the rows
+router.post("/api/admin/monitor/snooze", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  const until = body?.until === null ? null : new Date(body?.until)
+  if (!!body?.url === !!body?.scraperId || (until && !(until.getTime() > Date.now()))) {
+    ctx.status = 400
+    ctx.body = 'Either a URL or a scraper id, plus a future date (or null) are required'
+    return
+  }
+  const matched = await snoozeMonitorUrls(body.url ? { url: body.url } : { scraperId: body.scraperId }, until)
+  if (!matched) {
+    ctx.status = 404
+    ctx.body = 'Nothing monitored matches'
+    return
+  }
+  ctx.body = { snoozed: matched, until }
 })
 
 router.delete("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
