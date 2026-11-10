@@ -111,11 +111,6 @@
       // update shows in place instead of jumping down the list, until the page is reloaded
       const scraperRank = new Map();
 
-      function formatDate(iso) {
-        if (!iso) return "";
-        return iso.replace("T", " ").slice(0, 19);
-      }
-
       document.addEventListener("DOMContentLoaded", () => {
         const storedAuth = localStorage.getItem("auth");
         if (storedAuth) {

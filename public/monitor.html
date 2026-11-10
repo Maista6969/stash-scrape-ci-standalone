@@ -101,11 +101,6 @@
       // kept outside the DOM so a spinner survives the reloads that rebuild every row
       const scraping = new Set();
 
-      function formatDate(iso) {
-        if (!iso) return "";
-        return iso.replace("T", " ").slice(0, 16);
-      }
-
       function getAuth() {
         return authInput.value.trim() || localStorage.getItem("auth");
       }

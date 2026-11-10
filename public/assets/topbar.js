@@ -23,3 +23,11 @@
      </header>`,
   );
 })();
+
+// local time as 2026-11-06 22:05:42; lives here because this is the one script every page loads
+function formatDate(iso) {
+  const d = new Date(iso ?? NaN);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}

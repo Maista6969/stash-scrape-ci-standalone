@@ -8,7 +8,7 @@ function replaceShared(data) {
   replaceResult(
     data.runnerInfo.date,
     "runner-date",
-    new Date(data.runnerInfo.date).toLocaleString(),
+    formatDate(data.runnerInfo.date),
   );
   replaceResult(
     data.stashInfo?.version?.hash,
@@ -93,7 +93,7 @@ function replaceShared(data) {
       logRow.classList = "row";
       const logTime = document.createElement("div");
       logTime.classList = "log-time";
-      logTime.textContent = new Date(log.time).toLocaleString();
+      logTime.textContent = formatDate(log.time);
       const logLevel = document.createElement("div");
       logLevel.classList = log.level.toLowerCase();
       logLevel.textContent = log.level;
