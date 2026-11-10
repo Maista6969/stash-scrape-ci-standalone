@@ -33,6 +33,29 @@
       .group-name {
         font-family: var(--bs-font-monospace);
       }
+      /* a closed group is a plain line, so a long list fits more scrapers per screen */
+      details.card:not([open]) {
+        border-color: transparent;
+        margin-bottom: 0 !important;
+      }
+      details.card:not([open]) > .card-header {
+        background: none;
+        padding-top: 0.15rem;
+        padding-bottom: 0.15rem;
+      }
+      #toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bs-card-bg);
+        padding: 0.5rem 0;
+      }
+      #chips .badge {
+        cursor: pointer;
+      }
+      #chips .badge.off {
+        opacity: 0.4;
+      }
       .url-cell a {
         max-width: 360px;
       }
@@ -98,9 +121,13 @@
 
           <div class="card mt-4 p-3">
             <div
-              class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3"
+              id="toolbar"
+              class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2"
             >
-              <h6 id="summary" class="mb-0">Monitored URLs</h6>
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <h6 id="summary" class="mb-0">Monitored URLs</h6>
+                <span id="chips" title="Click a status to show or hide it"></span>
+              </div>
               <div class="d-flex gap-2 align-items-center">
                 <input
                   id="filter"
@@ -109,12 +136,8 @@
                   class="form-control form-control-sm"
                   style="width: 240px"
                 />
-                <div class="form-check mb-0">
-                  <input id="failing-only" type="checkbox" class="form-check-input" />
-                  <label for="failing-only" class="form-check-label small"
-                    >Failing only</label
-                  >
-                </div>
+                <button id="expand-all" class="btn btn-sm btn-outline-secondary">Expand</button>
+                <button id="collapse-all" class="btn btn-sm btn-outline-secondary">Collapse</button>
                 <button id="refresh" class="btn btn-sm btn-secondary">
                   Refresh
                 </button>
@@ -159,7 +182,9 @@
       const authInput = document.getElementById("admin-auth");
       const groupsEl = document.getElementById("groups");
       const filterInput = document.getElementById("filter");
-      const failingOnly = document.getElementById("failing-only");
+      const chipsEl = document.getElementById("chips");
+      // statuses shown; starts on what needs attention, the ok bulk is one click away
+      const shownStatuses = new Set(["regressed", "error", "suspect"]);
 
       const STATUS = {
         regressed: { badge: "text-bg-warning", label: "Regressed" },
@@ -176,6 +201,9 @@
       // rescrape that fixes it shows in place instead of moving it down, until the page is reloaded
       const rank = (u) => (isFailing(u) ? 0 : u.status === "suspect" ? 1 : 2);
       const seenRank = new Map();
+      // a URL stays visible under the chip it first appeared with, so a fix shows green in place
+      const firstStatus = new Map();
+      const isShown = (u) => shownStatuses.has(u.status) || shownStatuses.has(firstStatus.get(u.url));
       const stableRank = (key, r) => {
         if (!seenRank.has(key)) seenRank.set(key, r);
         return seenRank.get(key);
@@ -244,7 +272,14 @@
           });
         }
         filterInput.addEventListener("input", render);
-        failingOnly.addEventListener("change", render);
+        document.getElementById("expand-all").addEventListener("click", () => {
+          for (const d of groupsEl.querySelectorAll("details")) openGroups.add(d.dataset.scraperId);
+          render();
+        });
+        document.getElementById("collapse-all").addEventListener("click", () => {
+          openGroups.clear();
+          render();
+        });
         document.getElementById("coverage-filter").addEventListener("input", renderCoverage);
         document.getElementById("importable-only").addEventListener("change", renderCoverage);
       });
@@ -272,20 +307,37 @@
 
       function render() {
         const query = filterInput.value.trim().toLowerCase();
-        for (const u of entries) stableRank(u.url, rank(u));
+        for (const u of entries) {
+          stableRank(u.url, rank(u));
+          if (!firstStatus.has(u.url)) firstStatus.set(u.url, u.status);
+        }
         const groupRank = (id) => stableRank(`group:${id}`, Math.min(...entries.filter((u) => u.scraperId === id).map(rank)));
         const visible = entries.filter(
           (u) =>
-            (!failingOnly.checked || isFailing(u)) &&
+            isShown(u) &&
             (!query ||
               [u.scraperId, u.studio, u.network, u.url].some((v) =>
                 v?.toLowerCase().includes(query),
               )),
         );
 
-        const failing = entries.filter(isFailing).length;
-        document.getElementById("summary").textContent =
-          `Monitored URLs: ${entries.length} · ${failing} failing`;
+        document.getElementById("summary").textContent = `Monitored URLs: ${entries.length}`;
+        chipsEl.replaceChildren(
+          ...Object.keys(STATUS)
+            .map((s) => [s, entries.filter((u) => u.status === s).length])
+            .filter(([s, n]) => n || shownStatuses.has(s))
+            .map(([s, n]) => {
+              const chip = el("span", {
+                className: `badge ${STATUS[s].badge} ms-1${shownStatuses.has(s) ? "" : " off"}`,
+                textContent: `${n} ${STATUS[s].label.toLowerCase()}`,
+              });
+              chip.addEventListener("click", () => {
+                shownStatuses.has(s) ? shownStatuses.delete(s) : shownStatuses.add(s);
+                render();
+              });
+              return chip;
+            }),
+        );
 
         const groups = new Map();
         for (const u of visible) {
@@ -298,7 +350,7 @@
         if (!groups.size) {
           groupsEl.className = "text-secondary";
           groupsEl.textContent = entries.length
-            ? "Nothing matches the filter."
+            ? "Nothing matches the filter or the selected statuses."
             : "No URLs yet. Import a scraper's overview.md or add a URL.";
           return;
         }
@@ -331,6 +383,7 @@
           );
 
         const details = el("details", { className: "card mb-2", open: openGroups.has(scraperId) });
+        details.dataset.scraperId = scraperId;
         details.addEventListener("toggle", () =>
           details.open ? openGroups.add(scraperId) : openGroups.delete(scraperId),
         );
