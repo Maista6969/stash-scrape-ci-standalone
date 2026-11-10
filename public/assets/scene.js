@@ -7,11 +7,13 @@ function replaceData(data) {
   replaceResult(data.result?.details, 'result-details')
   // complex replacements
   // one span per performer with stash-box's gender mark and colour
-  const GENDER = { MALE: ["♂", "fa-mars"], FEMALE: ["♀", "fa-venus"], TRANSGENDER_MALE: ["⚧", "fa-transgender"], TRANSGENDER_FEMALE: ["⚧", "fa-transgender"] }
+  // scrapers write gender as free text, so match like stash-box: male, female, anything else is transgender
+  const GENDER = { male: ["♂", "fa-mars"], female: ["♀", "fa-venus"] }
   for (const performer of data.result?.performers ?? []) {
     const span = document.createElement("span")
     span.className = "scene-performer"
-    const [mark, cls] = GENDER[performer.gender] ?? []
+    const gender = performer.gender?.toLowerCase()
+    const [mark, cls] = gender ? GENDER[gender] ?? ["⚧", "fa-transgender"] : []
     if (mark) {
       const icon = document.createElement("span")
       icon.className = cls
@@ -21,7 +23,9 @@ function replaceData(data) {
     span.append(performer.name)
     document.getElementById("result-performers").append(span)
   }
-  replaceResult(data.result?.studio, "result-studio", `${data.result?.studio?.name} • ${data.result?.date}`)
+  const studio = data.result?.studio
+  const studioLabel = studio?.parent?.name ? `${studio.name} (of ${studio.parent.name})` : studio?.name
+  replaceResult(studio, "result-studio", [studioLabel, data.result?.date].filter(Boolean).join(" • "))
   if (data.result?.duration) replaceResult(data.result?.duration, "result-duration", new Date(data.result.duration * 1000).toISOString().substring(11, 16).replace("-", ":"))
 
   for (const fact of document.querySelectorAll("[data-optional]")) {
