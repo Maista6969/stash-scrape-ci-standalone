@@ -172,6 +172,14 @@
       };
       const SNOOZE_DAYS = [1, 7, 14];
       const isFailing = (u) => u.status === "regressed" || u.status === "error";
+      // failing first, then suspect; a URL or group keeps the rank it had when first seen, so a
+      // rescrape that fixes it shows in place instead of moving it down, until the page is reloaded
+      const rank = (u) => (isFailing(u) ? 0 : u.status === "suspect" ? 1 : 2);
+      const seenRank = new Map();
+      const stableRank = (key, r) => {
+        if (!seenRank.has(key)) seenRank.set(key, r);
+        return seenRank.get(key);
+      };
 
       let entries = [];
       let packages = [];
@@ -264,6 +272,8 @@
 
       function render() {
         const query = filterInput.value.trim().toLowerCase();
+        for (const u of entries) stableRank(u.url, rank(u));
+        const groupRank = (id) => stableRank(`group:${id}`, Math.min(...entries.filter((u) => u.scraperId === id).map(rank)));
         const visible = entries.filter(
           (u) =>
             (!failingOnly.checked || isFailing(u)) &&
@@ -295,7 +305,7 @@
 
         // stable order: scraping a URL must not move it
         const sorted = [...groups.entries()].sort(([a], [b]) =>
-          a.localeCompare(b),
+          groupRank(a) - groupRank(b) || a.localeCompare(b),
         );
         for (const [scraperId, urls] of sorted) {
           groupsEl.append(renderGroup(scraperId, urls));
@@ -305,6 +315,7 @@
       function renderGroup(scraperId, urls) {
         urls.sort(
           (a, b) =>
+            seenRank.get(a.url) - seenRank.get(b.url) ||
             (a.network ?? "").localeCompare(b.network ?? "") ||
             (a.studio ?? "").localeCompare(b.studio ?? "") ||
             a.url.localeCompare(b.url),

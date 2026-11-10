@@ -196,6 +196,10 @@
       const tableBody = document.getElementById("key-table-body");
       const scrapeTableBody = document.getElementById("scrape-table-body");
       const scraperTableBody = document.getElementById("scraper-table-body");
+      const outdated = (s) => !!s.source_package && s.source_package.version !== s.version;
+      // outdated packages sort first, but each row keeps the rank it had when first seen so an
+      // update shows in place instead of jumping down the list, until the page is reloaded
+      const scraperRank = new Map();
 
       function formatDate(iso) {
         if (!iso) return "";
@@ -428,7 +432,10 @@
             '<tr><td colspan="4" class="text-secondary">No scrapers installed.</td></tr>';
           return;
         }
-        scrapers.sort((a, b) => a.package_id.localeCompare(b.package_id));
+        for (const s of scrapers) if (!scraperRank.has(s.package_id)) scraperRank.set(s.package_id, outdated(s) ? 0 : 1);
+        scrapers.sort((a, b) =>
+          scraperRank.get(a.package_id) - scraperRank.get(b.package_id) || a.package_id.localeCompare(b.package_id),
+        );
         for (const scraper of scrapers) {
           const row = document.createElement("tr");
 
@@ -448,7 +455,7 @@
           const actionCell = document.createElement("td");
           actionCell.className = "d-flex gap-1";
           const available = scraper.source_package?.version;
-          if (available && available !== scraper.version) {
+          if (outdated(scraper)) {
             const updateBtn = document.createElement("button");
             updateBtn.className = "btn btn-sm btn-outline-primary";
             updateBtn.textContent = "Update";
