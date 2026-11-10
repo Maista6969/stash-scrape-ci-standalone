@@ -92,7 +92,7 @@ export class StashApp {
     }`).then(data => data.installedPackages.map((pkg: installedPackage) => pkg.package_id))
 
   getInstalledScrapers = async (): Promise<installedPackage[]> => this.callGQL(`query {
-      installedPackages(type: Scraper) { package_id version date }
+      installedPackages(type: Scraper) { package_id version date source_package { version date } }
     }`).then(data => data.installedPackages)
 
   installPackage = (id: String): Promise<number> => this.callGQL(`mutation ($id: String!) {

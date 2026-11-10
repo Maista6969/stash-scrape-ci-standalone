@@ -446,6 +446,18 @@
           row.appendChild(dateCell);
 
           const actionCell = document.createElement("td");
+          actionCell.className = "d-flex gap-1";
+          const available = scraper.source_package?.version;
+          if (available && available !== scraper.version) {
+            const updateBtn = document.createElement("button");
+            updateBtn.className = "btn btn-sm btn-outline-primary";
+            updateBtn.textContent = "Update";
+            updateBtn.title = `Update to ${available} (${formatDate(scraper.source_package.date)})`;
+            updateBtn.addEventListener("click", () =>
+              postScraper(scraper.package_id, updateBtn, "Update"),
+            );
+            actionCell.appendChild(updateBtn);
+          }
           const removeBtn = document.createElement("button");
           removeBtn.className = "btn btn-sm btn-outline-danger";
           removeBtn.textContent = "Remove";
@@ -471,10 +483,16 @@
           alert("Package ID is required.");
           return;
         }
-        const button = document.getElementById("install-scraper");
+        postScraper(id, document.getElementById("install-scraper"), "Install")
+          .then(() => { idInput.value = ""; });
+      }
+
+      // installPackages also updates an already-installed package, so install and update share a request
+      function postScraper(id, button, label) {
+        const auth = getAuth();
         button.disabled = true;
-        button.textContent = "Installing…";
-        fetch(scraperURL, {
+        button.textContent = label === "Update" ? "Updating…" : "Installing…";
+        return fetch(scraperURL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ auth, id }),
@@ -482,15 +500,14 @@
           .then(async (res) => {
             if (!res.ok)
               throw new Error(
-                (await res.text()) || "Failed to install scraper.",
+                (await res.text()) || `Failed to ${label.toLowerCase()} scraper.`,
               );
-            idInput.value = "";
             loadScrapers();
           })
           .catch((err) => alert(err.message))
           .finally(() => {
             button.disabled = false;
-            button.textContent = "Install";
+            button.textContent = label;
           });
       }
 
