@@ -2,188 +2,98 @@
 <html lang="en" data-bs-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <title>API Key Admin</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-    <style>
-      body {
-        padding-top: 30px;
-      }
-      .apikey-cell {
-        font-family: var(--bs-font-monospace);
-        cursor: pointer;
-      }
-      .usage-exhausted {
-        color: var(--bs-danger);
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>API keys</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/site.css" />
   </head>
-  <body>
-    <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-md-10">
-          <div class="card p-4">
-            <div class="d-flex justify-content-between align-items-center">
-              <h5 class="card-title">Admin Key</h5>
-              <a href="/monitor" class="small">Scraper Monitor</a>
-            </div>
-            <div class="input-group">
-              <input
-                id="admin-auth"
-                type="password"
-                placeholder="Admin Key"
-                class="form-control"
-                autocomplete="off"
-              />
-              <button id="load-keys" class="btn btn-primary">Load Keys</button>
-            </div>
-          </div>
-
-          <div class="card mt-4 p-4">
-            <h5 class="card-title">Create API Key</h5>
-            <form id="create-form" class="row g-2 align-items-end">
-              <div class="col-md-6">
-                <label for="create-note" class="form-label"
-                  >Note / Username</label
-                >
-                <input
-                  id="create-note"
-                  type="text"
-                  placeholder="e.g. backer's username"
-                  class="form-control"
-                  required
-                  autocomplete="off"
-                />
-              </div>
-              <div class="col-md-3">
-                <label for="create-limit" class="form-label">Daily Limit</label>
-                <input
-                  id="create-limit"
-                  type="number"
-                  placeholder="200"
-                  class="form-control"
-                  min="1"
-                />
-              </div>
-              <div class="col-md-3">
-                <button type="submit" class="btn btn-success w-100">
-                  Create Key
-                </button>
-              </div>
+  <body data-page="admin" data-key>
+    <script src="/assets/topbar.js"></script>
+    <main>
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-label">API keys</h2>
+          <div class="panel-tools">
+            <form id="create-form" class="d-flex gap-1">
+              <input id="create-note" type="text" placeholder="Note or username" class="form-control form-control-sm" style="width: 16rem" required autocomplete="off" />
+              <input id="create-limit" type="number" placeholder="Daily limit" class="form-control form-control-sm" style="width: 7rem" min="1" />
+              <button type="submit" class="btn btn-sm btn-primary text-nowrap">Create key</button>
             </form>
-          </div>
-
-          <div class="card mt-4 p-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0">API Keys</h6>
-              <button id="refresh-keys" class="btn btn-sm btn-secondary">
-                Refresh
-              </button>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle">
-                <thead>
-                  <tr>
-                    <th>Note / Username</th>
-                    <th>API Key</th>
-                    <th>Status</th>
-                    <th>Daily Limit</th>
-                    <th>Today</th>
-                    <th>Total Uses</th>
-                    <th>Created</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="key-table-body">
-                  <tr>
-                    <td colspan="8" class="text-secondary">
-                      Enter the admin key and click "Load Keys".
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="card mt-4 p-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0">Recent Scrapes</h6>
-              <button id="refresh-scrapes" class="btn btn-sm btn-secondary">
-                Refresh
-              </button>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Type</th>
-                    <th>URL</th>
-                    <th>Date</th>
-                    <th>Job ID</th>
-                  </tr>
-                </thead>
-                <tbody id="scrape-table-body">
-                  <tr>
-                    <td colspan="5" class="text-secondary">
-                      Enter the admin key and click "Load Keys".
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="card mt-4 p-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0">Installed Scrapers</h6>
-              <div class="d-flex gap-2">
-                <div class="input-group input-group-sm" style="width: 280px">
-                  <input
-                    id="install-scraper-id"
-                    type="text"
-                    placeholder="Package ID (e.g. Altwolia)"
-                    class="form-control"
-                    autocomplete="off"
-                  />
-                  <button id="install-scraper" class="btn btn-success">
-                    Install
-                  </button>
-                </div>
-                <button id="refresh-scrapers" class="btn btn-sm btn-secondary">
-                  Refresh
-                </button>
-              </div>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle">
-                <thead>
-                  <tr>
-                    <th>Package ID</th>
-                    <th>Version</th>
-                    <th
-                      title="Release date of the installed version, per the CommunityScrapers index -- Stash doesn't track when a package was installed on this instance"
-                    >
-                      Package Date
-                    </th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="scraper-table-body">
-                  <tr>
-                    <td colspan="4" class="text-secondary">
-                      Enter the admin key and click "Load Keys".
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <button id="refresh-keys" class="btn btn-sm btn-outline-secondary">Refresh</button>
           </div>
         </div>
-      </div>
-    </div>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Note</th>
+                <th>Key</th>
+                <th>Status</th>
+                <th>Daily limit</th>
+                <th>Today</th>
+                <th>Total</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="key-table-body">
+              <tr><td colspan="8" class="hint">Enter the admin key to load.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-label">Recent scrapes</h2>
+          <button id="refresh-scrapes" class="btn btn-sm btn-outline-secondary">Refresh</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>URL</th>
+                <th>Date</th>
+                <th>Job</th>
+              </tr>
+            </thead>
+            <tbody id="scrape-table-body">
+              <tr><td colspan="5" class="hint">Enter the admin key to load.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-label">Installed scrapers</h2>
+          <div class="panel-tools">
+            <div class="input-group input-group-sm" style="width: 280px">
+              <input id="install-scraper-id" type="text" placeholder="Package id, e.g. Altwolia" class="form-control" autocomplete="off" />
+              <button id="install-scraper" class="btn btn-primary">Install</button>
+            </div>
+            <button id="refresh-scrapers" class="btn btn-sm btn-outline-secondary">Refresh</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Package</th>
+                <th>Version</th>
+                <th title="Release date of the installed version, per the CommunityScrapers index; Stash doesn't track when a package was installed here">Package date</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="scraper-table-body">
+              <tr><td colspan="4" class="hint">Enter the admin key to load.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
 
     <script>
       const baseURL = window.location.origin;
@@ -215,7 +125,8 @@
           loadScrapers();
         }
 
-        document.getElementById("load-keys").addEventListener("click", () => {
+        document.getElementById("key-form").addEventListener("submit", (event) => {
+          event.preventDefault();
           const auth = authInput.value.trim();
           if (!auth) {
             alert("Admin key is required.");
@@ -336,7 +247,7 @@
               revokeKey(key.apikey, key.note),
             );
           } else {
-            actionBtn.className = "btn btn-sm btn-outline-success";
+            actionBtn.className = "btn btn-sm btn-outline-secondary";
             actionBtn.textContent = "Reactivate";
             actionBtn.addEventListener("click", () =>
               reactivateKey(key.apikey, key.note),

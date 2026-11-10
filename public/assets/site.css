@@ -1,0 +1,362 @@
+/* shared look: flat and dense on the Stash / stash-box palette (Blueprint colours, see
+   stash ui/v2.5/src/styles/_theme.scss); Bootstrap stays for grid, forms and tables */
+:root,
+[data-bs-theme="dark"] {
+  --accent: #137cbd;
+  --accent-rgb: 19, 124, 189;
+  --topbar-h: 2.75rem;
+  --bs-body-bg: #202b33;
+  --bs-body-bg-rgb: 32, 43, 51;
+  --bs-body-color: #f5f8fa;
+  --bs-body-color-rgb: 245, 248, 250;
+  --bs-secondary-color: #bfccd6;
+  --bs-tertiary-bg: #30404d;
+  --bs-tertiary-bg-rgb: 48, 64, 77;
+  --bs-border-color: #414c53;
+  --bs-primary: var(--accent);
+  --bs-primary-rgb: var(--accent-rgb);
+  --bs-success: #0f9960;
+  --bs-success-rgb: 15, 153, 96;
+  --bs-warning: #d9822b;
+  --bs-warning-rgb: 217, 130, 43;
+  --bs-danger: #db3737;
+  --bs-danger-rgb: 219, 55, 55;
+  --bs-link-color: #48aff0;
+  --bs-link-color-rgb: 72, 175, 240;
+  --bs-link-hover-color: #48aff0;
+  --bs-link-hover-color-rgb: 72, 175, 240;
+  --bs-font-monospace: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+body {
+  margin: 0;
+}
+
+/* controls */
+.btn-primary {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--accent);
+  --bs-btn-border-color: var(--accent);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #106ba3;
+  --bs-btn-hover-border-color: #106ba3;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #0e5a8a;
+  --bs-btn-active-border-color: #0e5a8a;
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: var(--accent);
+  --bs-btn-disabled-border-color: var(--accent);
+}
+.btn-outline-primary {
+  --bs-btn-color: #48aff0;
+  --bs-btn-border-color: var(--accent);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--accent);
+  --bs-btn-hover-border-color: var(--accent);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #106ba3;
+  --bs-btn-active-border-color: #106ba3;
+  --bs-btn-disabled-color: #48aff0;
+  --bs-btn-disabled-border-color: var(--accent);
+}
+.btn-outline-secondary {
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-border-color: var(--bs-border-color);
+  --bs-btn-hover-color: var(--bs-body-color);
+  --bs-btn-hover-bg: #394b59;
+  --bs-btn-hover-border-color: #5c7080;
+  --bs-btn-active-color: var(--bs-body-color);
+  --bs-btn-active-bg: #394b59;
+  --bs-btn-active-border-color: #5c7080;
+}
+.form-control,
+.form-select {
+  /* Stash's translucent text fields */
+  background-color: rgba(16, 22, 26, 0.3);
+  border-color: var(--bs-border-color);
+}
+.form-control:focus,
+.form-select:focus {
+  background-color: rgba(16, 22, 26, 0.3);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem rgba(var(--accent-rgb), 0.3);
+}
+.form-control::placeholder {
+  color: #8a9ba8;
+}
+.form-check-input:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+.list-group {
+  --bs-list-group-bg: transparent;
+  --bs-list-group-border-color: var(--bs-border-color);
+}
+
+/* top bar */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 1.25rem;
+  background: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+.topbar .brand {
+  font-family: var(--bs-font-monospace);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #48aff0;
+  text-decoration: none;
+}
+.topbar nav {
+  display: flex;
+  gap: 1.25rem;
+  height: 100%;
+}
+.topbar nav a {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--bs-secondary-color);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.topbar nav a:hover {
+  color: var(--bs-body-color);
+}
+.topbar nav a.active {
+  color: var(--bs-body-color);
+  border-bottom-color: var(--accent);
+}
+.topbar .key {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+}
+.topbar .key input {
+  width: 14rem;
+}
+
+/* page sections */
+main {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+main.narrow {
+  max-width: 760px;
+}
+.panel {
+  margin-bottom: 2.5rem;
+}
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+.panel-head.sticky {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 10;
+  background: var(--bs-body-bg);
+  padding-top: 0.5rem;
+}
+.panel-label {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+.panel-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.hint {
+  color: var(--bs-secondary-color);
+  font-size: 0.875rem;
+}
+.mono,
+.apikey-cell {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.85em;
+}
+.apikey-cell {
+  cursor: pointer;
+}
+.usage-exhausted {
+  color: var(--bs-danger);
+}
+
+/* tables */
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-border-color: var(--bs-border-color);
+  font-size: 0.875rem;
+  margin-bottom: 0;
+}
+.table > thead th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+.table > :not(caption) > * > * {
+  padding: 0.35rem 0.5rem;
+}
+
+/* monitor groups: a closed group is one line, an open one a table */
+details.group {
+  border-bottom: 1px solid var(--bs-border-color);
+}
+details.group > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.25rem;
+}
+details.group > summary::-webkit-details-marker {
+  display: none;
+}
+details.group > summary:hover,
+details.group[open] > summary {
+  background: var(--bs-tertiary-bg);
+}
+.chevron {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  color: var(--bs-secondary-color);
+  transition: transform 0.15s;
+}
+details[open] > summary .chevron {
+  transform: rotate(90deg);
+}
+.group-name {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.9rem;
+}
+details.group .table {
+  margin: 0.25rem 0 0.75rem;
+}
+.url-cell a {
+  max-width: 360px;
+}
+.missing {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.8rem;
+}
+#chips .badge {
+  cursor: pointer;
+}
+#chips .badge.off {
+  opacity: 0.35;
+}
+
+/* scene result: StashDB's own compiled stylesheet carries the card, tabs, tags and image frame;
+   these are only the pieces StashDB has no equivalent for */
+.scrape-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+}
+.scrape-meta > span > * {
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-body-color);
+}
+.scrape-meta a {
+  text-decoration: none;
+}
+.scrape-meta a:hover {
+  text-decoration: underline;
+}
+.hidden {
+  display: none !important;
+}
+.error-message {
+  color: var(--bs-danger);
+}
+#result-image-placeholder {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-secondary-color);
+}
+#result-image-placeholder:hover {
+  color: var(--bs-body-color);
+}
+.scene-tag-list .hint {
+  margin: 0 5px;
+}
+.url-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-family: var(--bs-font-monospace);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.url-list .hint {
+  list-style: none;
+  margin-left: -1.2rem;
+  font-family: var(--bs-font-sans-serif);
+}
+.logs {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.8rem;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  padding: 0.5rem 0.75rem;
+  background: rgba(16, 22, 26, 0.3);
+  border: 1px solid var(--bs-border-color);
+}
+.logs:empty::before {
+  content: "No log lines captured";
+  color: var(--bs-secondary-color);
+}
+.logs .row {
+  --bs-gutter-x: 0;
+  display: grid;
+  grid-template-columns: 11rem 4.5rem 1fr;
+  gap: 0 0.75rem;
+}
+.logs .col {
+  width: auto;
+  flex: none;
+}
+.logs .log-time,
+.logs .trace {
+  color: var(--bs-secondary-color);
+}
+.logs .debug {
+  color: #3dcc91;
+}
+.logs .warning {
+  color: var(--bs-warning);
+}
+.logs .error {
+  color: var(--bs-danger);
+}
