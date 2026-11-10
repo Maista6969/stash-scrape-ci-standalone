@@ -257,7 +257,8 @@ export const handleInteraction = async (
     runUpdateScrapersCommand(body.application_id, body.token).catch((err) =>
       console.error("Discord update_scrapers command failed:", err),
     );
-    return { status: 200, json: { type: 5 } };
+    // the follow-up edits this deferred message, so its ephemeral flag decides who sees the result
+    return { status: 200, json: { type: 5, data: { flags: 64 } } };
   }
 
   // fast DB-only lookup/insert; answers directly instead of deferring
