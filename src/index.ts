@@ -1,7 +1,7 @@
 // imports
 import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, snoozeMonitorUrls, syncOverviewRows, getLatestResults, monitorUrl } from "./db.js"
 import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields, applySnooze } from "./monitor.js"
-import { searchScrapers, getScraperId, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
+import { searchScrapers, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
 import { checkKeyValidity, getKeyUsage } from "./apikey.js"
@@ -173,9 +173,11 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
 // which scene-by-URL scrapers in the repo have no monitored URLs yet, and which of those can be imported
 router.get("/api/admin/monitor/coverage", koaValidateAdmin, async (ctx) => {
   const [index, urls, overviews] = await Promise.all([fetchScraperIndex(), listMonitorUrls(), fetchOverviewIds()])
+  // patterns are mostly bare "host/path", a few carry a scheme
+  const hostOf = (pattern: string) => new URL(pattern.includes("://") ? pattern : `https://${pattern}`).hostname
   const scrapers = index
-    .filter(s => s.searchTypes?.scene?.url)
-    .map(s => ({ scraperId: getScraperId(s), name: s.name, hosts: s.hosts ?? [] }))
+    .filter(s => s.sites.length)
+    .map(s => ({ scraperId: s.id, name: s.name, hosts: s.sites.map(hostOf) }))
   ctx.body = coverage(scrapers, urls).map(pkg => ({ ...pkg, overview: overviews.has(pkg.scraperId) }))
 })
 
@@ -186,7 +188,7 @@ router.post("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
     ctx.body = 'A valid http(s) URL is required'
     return
   }
-  const matched = (await searchScrapers(body.url)).map(getScraperId)
+  const matched = (await searchScrapers(body.url)).map(s => s.id)
   if (!matched.length) {
     ctx.status = 422
     ctx.body = 'No scraper matches this URL'
@@ -276,7 +278,7 @@ router.post("/api/admin/monitor/import", koaValidateAdmin, async (ctx) => {
   // an overview.md can list URLs another scraper claims (e.g. Reptyle's lists SayUncle's), so file each by match
   const index = await fetchScraperIndex()
   const docs = rows.map(row => {
-    const matched = matchScrapers(index, row.url).map(getScraperId)
+    const matched = matchScrapers(index, row.url).map(s => s.id)
     const scraperId = matched.length && !matched.includes(body.id) ? matched[0] : body.id
     return { ...row, scraperId, source: "overview" as const, overview: body.id }
   })

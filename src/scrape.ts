@@ -4,7 +4,7 @@ import { StashApp } from "./stash-app.js"
 import { genJobID, serialized } from "./utils.js"
 import { uploadImage } from "./b2.js"
 import { consumeKeyCredit, keyStatus } from "./apikey.js"
-import { searchScrapers, getScraperId } from "./scraper-index.js"
+import { searchScrapers } from "./scraper-index.js"
 import { jobResult, runnerInfo } from "../types/jobResult.js"
 
 // apiKey is only passed by the HTTP routes — Discord commands are role-gated,
@@ -60,7 +60,7 @@ const autoMonitor = async (job: jobResult, url: string) => {
   const scraped = job.result as any
   if (await addMonitorUrls([{
     url,
-    scraperId: getScraperId(scraper),
+    scraperId: scraper.id,
     studio: scraped.studio?.name ?? null,
     network: scraped.studio?.parent?.name ?? null,
     source: "auto",

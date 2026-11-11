@@ -1,44 +1,23 @@
-// import types from scraper index
-import { scraperExport } from "../types/scraperIndex.js";
-import axios from "axios";
+import { scraperPackage } from "../types/scraperIndex.js";
 import { StashApp } from "./stash-app.js";
 
-// scraper index searcher and installer
-export const fetchScraperIndex = (): Promise<scraperExport[]> =>
-  axios
-    .get("https://stashapp.github.io/CommunityScrapers/assets/scrapers.json")
-    .then((res) => res.data as scraperExport[]);
+// Stash already downloads and parses CommunityScrapers' index.yml, so ask it rather than parse YAML here
+export const fetchScraperIndex = (): Promise<scraperPackage[]> => new StashApp().availableScrapers();
 
-export const matchScrapers = (index: scraperExport[], url: string): scraperExport[] =>
+export const matchScrapers = (index: scraperPackage[], url: string): scraperPackage[] =>
   index.filter((scraper) => scraper.sites.some((pattern) => url.includes(pattern)));
 
-export async function searchScrapers(url: string): Promise<scraperExport[]> {
+export async function searchScrapers(url: string): Promise<scraperPackage[]> {
   return matchScrapers(await fetchScraperIndex(), url);
 }
 
-export const getScraperId = (scraper: scraperExport): string =>
-  scraper.filename
-    .replace("../scrapers/", "")
-    .replace(".yml", "")
-    .split("/")[0];
-
+// Stash's installPackages doesn't pull in `requires` itself; its UI does that client-side
 async function installSharedDependencies(
-  scraper: scraperExport,
+  scraper: scraperPackage,
   stash: StashApp,
   existingScrapers: string[],
 ): Promise<void> {
-  const rawURL = `https://raw.githubusercontent.com/stashapp/CommunityScrapers/master/${scraper.filename.replace("../", "")}`;
-  const source: string = await axios
-    .get(rawURL)
-    .then((res) => res.data)
-    .catch(() => "");
-  const match = source.match(/^#\s*requires:\s*(.+)$/m);
-  if (!match) return;
-  const requiredPackages = match[1]
-    .split(",")
-    .map((pkg) => pkg.trim())
-    .filter(Boolean);
-  for (const pkg of requiredPackages) {
+  for (const pkg of scraper.requires) {
     if (existingScrapers.includes(pkg)) continue;
     console.log(`Installing shared dependency: ${pkg}`);
     const jobId = await stash.installPackage(pkg);
@@ -60,15 +39,15 @@ export async function scraperSearch(
   const existingScrapers = await stash.getExistingScrapers();
   // check against IDs
   const hasExistingScrapers = matchedScrapers
-    .map(getScraperId)
+    .map((scraper) => scraper.id)
     .filter((id) => existingScrapers.includes(id));
   const nameForId = (id: string): string =>
-    matchedScrapers.find((scraper) => getScraperId(scraper) === id)?.name ??
+    matchedScrapers.find((scraper) => scraper.id === id)?.name ??
     id;
   // if no existing and only one matched, install it
   if (hasExistingScrapers.length === 0 && matchedScrapers.length === 1) {
     const scraper = matchedScrapers[0];
-    const scraperId = getScraperId(scraper);
+    const scraperId = scraper.id;
     console.log(`Installing scraper: ${scraperId}`);
     const jobId = await stash.installPackage(scraperId);
     await stash.awaitJobFinished(jobId);

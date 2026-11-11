@@ -1,9 +1,12 @@
 import { getLastScraperUpdate, setLastScraperUpdate } from "./db.js"
 import { scraperSearch } from "./scraper-index.js"
+import { scraperPackage } from "../types/scraperIndex.js"
 import { installedPackage, logEntry } from "../types/stashapp.js"
 import axios from "axios"
 import { sceneResult, stashInfo, partialJobResult } from "../types/jobResult.js"
 import crypto from "crypto"
+
+export const SCRAPER_SOURCE = "https://stashapp.github.io/CommunityScrapers/stable/index.yml"
 
 export class StashApp {
   private STASH_URL: string
@@ -91,6 +94,16 @@ export class StashApp {
       installedPackages(type: Scraper) { package_id }
     }`).then(data => data.installedPackages.map((pkg: installedPackage) => pkg.package_id))
 
+  // scene_urls is empty for packages without sceneByURL; scrape-ci is scene-only so those never match
+  availableScrapers = async (): Promise<scraperPackage[]> => this.callGQL(`query {
+      availablePackages(type: Scraper, source: "${SCRAPER_SOURCE}") { package_id name requires { package_id } metadata }
+    }`).then(data => data.availablePackages.map((pkg: any): scraperPackage => ({
+      id: pkg.package_id,
+      name: pkg.name,
+      sites: pkg.metadata.scene_urls ?? [],
+      requires: pkg.requires.map((r: any) => r.package_id),
+    })))
+
   getInstalledScrapers = async (): Promise<installedPackage[]> => this.callGQL(`query {
       installedPackages(type: Scraper) { package_id version date source_package { version date } }
     }`).then(data => data.installedPackages)
@@ -99,7 +112,7 @@ export class StashApp {
     installPackages(
       packages: {
         id: $id,
-        sourceURL: "https://stashapp.github.io/CommunityScrapers/stable/index.yml"
+        sourceURL: "${SCRAPER_SOURCE}"
       } type: Scraper
     )}`, { id })
     .then(data => data.installPackages)
@@ -108,7 +121,7 @@ export class StashApp {
     uninstallPackages(
       packages: {
         id: $id,
-        sourceURL: "https://stashapp.github.io/CommunityScrapers/stable/index.yml"
+        sourceURL: "${SCRAPER_SOURCE}"
       } type: Scraper
     )}`, { id })
     .then(data => data.uninstallPackages)
