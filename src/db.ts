@@ -132,8 +132,25 @@ export const listMonitorUrls = async (): Promise<monitorUrl[]> => {
   return monitorUrlCollection.find().project({ _id: 0 }).toArray() as any;
 }
 
+// scrapers kept out of the monitor, e.g. dead sites people still scrape through the Wayback Machine
+const excludedScraperCollection = db.collection("excludedScrapers");
+
+export const listExcludedScrapers = async (): Promise<string[]> =>
+  (await excludedScraperCollection.find().project({ _id: 0, scraperId: 1 }).toArray()).map(doc => doc.scraperId)
+
+// drops the scraper's rows; addMonitorUrls keeps them from coming back
+export const excludeScraper = async (scraperId: string): Promise<number> => {
+  await excludedScraperCollection.updateOne({ scraperId }, { $setOnInsert: { scraperId, excludedAt: new Date() } }, { upsert: true })
+  return (await monitorUrlCollection.deleteMany({ scraperId })).deletedCount
+}
+
+export const includeScraper = async (scraperId: string): Promise<boolean> =>
+  (await excludedScraperCollection.deleteOne({ scraperId })).deletedCount > 0
+
 // $setOnInsert so re-importing an overview.md leaves existing rows and their baselines alone
 export const addMonitorUrls = async (docs: Omit<monitorUrl, "addedAt" | "baseline">[]): Promise<number> => {
+  const excluded = await listExcludedScrapers()
+  docs = docs.filter(doc => !excluded.includes(doc.scraperId))
   if (!docs.length) return 0
   const res = await monitorUrlCollection.bulkWrite(docs.map(doc => ({
     updateOne: {

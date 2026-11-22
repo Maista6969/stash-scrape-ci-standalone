@@ -292,6 +292,7 @@
             ...counts,
             ...snoozeCtl,
             reimportBtn,
+            linkButton("Exclude scraper", () => excludeScraper(scraperId)),
           ]),
           el("div", { className: "table-responsive" },
             el("table", { className: "table table-sm align-middle mb-0" }, [
@@ -379,11 +380,12 @@
 
       // scene-by-URL scrapers in the repo with no monitored URL yet
       function renderCoverage() {
-        const withUrls = packages.filter((p) => p.urls).length;
-        const hosts = packages.reduce((n, p) => n + p.hosts, 0);
-        const covered = packages.reduce((n, p) => n + p.coveredHosts, 0);
+        const counted = packages.filter((p) => !p.excluded);
+        const withUrls = counted.filter((p) => p.urls).length;
+        const hosts = counted.reduce((n, p) => n + p.hosts, 0);
+        const covered = counted.reduce((n, p) => n + p.coveredHosts, 0);
         document.getElementById("coverage-summary").textContent =
-          `Coverage: ${withUrls} of ${packages.length} scrapers · ${covered} of ${hosts} domains`;
+          `Coverage: ${withUrls} of ${counted.length} scrapers · ${covered} of ${hosts} domains`;
 
         const query = document.getElementById("coverage-filter").value.trim().toLowerCase();
         const importableOnly = document.getElementById("importable-only").checked;
@@ -391,7 +393,7 @@
           .filter((p) => !p.urls)
           .filter((p) => !importableOnly || p.overview)
           .filter((p) => !query || [p.scraperId, ...p.names].some((v) => v.toLowerCase().includes(query)))
-          .sort((a, b) => a.scraperId.localeCompare(b.scraperId));
+          .sort((a, b) => Number(a.excluded) - Number(b.excluded) || a.scraperId.localeCompare(b.scraperId));
 
         const container = document.getElementById("coverage");
         if (!missing.length) {
@@ -405,7 +407,12 @@
               el("thead", {}, el("tr", {}, ["Scraper", "Domains", ""].map((h) => el("th", { textContent: h })))),
               el("tbody", {}, missing.map((p) => {
                 const action = el("td", { className: "text-end text-nowrap" });
-                if (p.overview) {
+                if (p.excluded) {
+                  action.append(
+                    el("span", { className: "badge text-bg-secondary me-2", textContent: "Excluded" }),
+                    linkButton("Include", () => includeScraper(p.scraperId)),
+                  );
+                } else if (p.overview) {
                   const button = el("button", { className: "btn btn-sm btn-outline-primary", textContent: "Import" });
                   button.addEventListener("click", () => {
                     document.getElementById("import-id").value = p.scraperId;
@@ -514,6 +521,19 @@
         if (!confirm(`Stop expecting ${fields.join(", ")} for ${url}?`)) return;
         api("/accept", "POST", { url, fields })
           .then(loadUrls)
+          .catch((err) => alert(err.message));
+      }
+
+      function excludeScraper(scraperId) {
+        if (!confirm(`Exclude ${scraperId} from the monitor?\nAll its URLs are removed and nothing re-adds them until it is included again.`)) return;
+        api("/exclude", "POST", { scraperId, excluded: true })
+          .then(load)
+          .catch((err) => alert(err.message));
+      }
+
+      function includeScraper(scraperId) {
+        api("/exclude", "POST", { scraperId, excluded: false })
+          .then(load)
           .catch((err) => alert(err.message));
       }
 

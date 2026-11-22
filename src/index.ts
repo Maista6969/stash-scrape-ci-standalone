@@ -1,5 +1,5 @@
 // imports
-import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, snoozeMonitorUrls, syncOverviewRows, getLatestResults, monitorUrl } from "./db.js"
+import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, snoozeMonitorUrls, syncOverviewRows, getLatestResults, monitorUrl, listExcludedScrapers, excludeScraper, includeScraper } from "./db.js"
 import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields, applySnooze } from "./monitor.js"
 import { searchScrapers, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
@@ -172,13 +172,13 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
 
 // which scene-by-URL scrapers in the repo have no monitored URLs yet, and which of those can be imported
 router.get("/api/admin/monitor/coverage", koaValidateAdmin, async (ctx) => {
-  const [index, urls, overviews] = await Promise.all([fetchScraperIndex(), listMonitorUrls(), fetchOverviewIds()])
+  const [index, urls, overviews, excluded] = await Promise.all([fetchScraperIndex(), listMonitorUrls(), fetchOverviewIds(), listExcludedScrapers()])
   // patterns are mostly bare "host/path", a few carry a scheme
   const hostOf = (pattern: string) => new URL(pattern.includes("://") ? pattern : `https://${pattern}`).hostname
   const scrapers = index
     .filter(s => s.sites.length)
     .map(s => ({ scraperId: s.id, name: s.name, hosts: s.sites.map(hostOf) }))
-  ctx.body = coverage(scrapers, urls).map(pkg => ({ ...pkg, overview: overviews.has(pkg.scraperId) }))
+  ctx.body = coverage(scrapers, urls).map(pkg => ({ ...pkg, overview: overviews.has(pkg.scraperId), excluded: excluded.includes(pkg.scraperId) }))
 })
 
 router.post("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
@@ -192,6 +192,11 @@ router.post("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
   if (!matched.length) {
     ctx.status = 422
     ctx.body = 'No scraper matches this URL'
+    return
+  }
+  if ((await listExcludedScrapers()).includes(matched[0])) {
+    ctx.status = 422
+    ctx.body = `${matched[0]} is excluded from the monitor`
     return
   }
   const added = await addMonitorUrls([{
@@ -239,6 +244,19 @@ router.post("/api/admin/monitor/snooze", koaValidateAdmin, async (ctx) => {
     return
   }
   ctx.body = { snoozed: matched, until }
+})
+
+// excluded: true drops the scraper's rows and blocks imports, manual adds and auto-monitoring for it; false lifts that
+router.post("/api/admin/monitor/exclude", koaValidateAdmin, async (ctx) => {
+  const body = (ctx.request as any).body
+  if (!isValidPackageId(body?.scraperId) || typeof body?.excluded !== "boolean") {
+    ctx.status = 400
+    ctx.body = 'A scraper id and excluded: true or false are required'
+    return
+  }
+  ctx.body = body.excluded
+    ? { excluded: body.scraperId, removed: await excludeScraper(body.scraperId) }
+    : { included: body.scraperId, wasExcluded: await includeScraper(body.scraperId) }
 })
 
 router.delete("/api/admin/monitor/url", koaValidateAdmin, async (ctx) => {
