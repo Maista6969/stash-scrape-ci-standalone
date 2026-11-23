@@ -1,6 +1,6 @@
 // imports
 import { connect, createIndex, getResult, createApiKey, revokeApiKey, reactivateApiKey, listApiKeys, listRecentScrapes, listMonitorUrls, addMonitorUrls, getMonitorUrl, removeMonitorUrl, updateMonitorUrl, acceptMonitorFields, snoozeMonitorUrls, syncOverviewRows, getLatestResults, monitorUrl, listExcludedScrapers, excludeScraper, includeScraper } from "./db.js"
-import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields, applySnooze } from "./monitor.js"
+import { classify, nextBaseline, parseOverview, fetchOverview, isValidPackageId, pickDue, coverage, fetchOverviewIds, siblingFields, applySnooze, MIN_FIELDS } from "./monitor.js"
 import { searchScrapers, fetchScraperIndex, matchScrapers } from "./scraper-index.js"
 import { StashApp, updateScrapersWithDiff } from "./stash-app.js"
 import { helpText } from "./utils.js"
@@ -161,7 +161,7 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
       latest: doc ? {
         jobId: doc.jobId,
         date: doc.date,
-        error: doc.error ?? (verdict.status === "error" ? "Scrape returned no fields" : null),
+        error: doc.error ?? (verdict.status === "error" ? `Scrape returned fewer than ${MIN_FIELDS} fields` : null),
         scraperId: doc.scraperId ?? null,
         title: doc.result?.title ?? null,
         studio: doc.result?.studio?.name ?? null,
