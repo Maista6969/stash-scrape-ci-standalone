@@ -53,11 +53,10 @@ services:
         condition: service_completed_successfully
       init-python-deps:
         condition: service_completed_successfully
+    # shares gluetun's network namespace instead of using its HTTP proxy: Stash's surf loader only
+    # sends its browser TLS hello on direct connections, behind a proxy it falls back to Go's TLS
+    network_mode: "service:gluetun"
     environment:
-      # Go and Python only use HTTP_PROXY for http:// URLs; https:// needs HTTPS_PROXY
-      - HTTP_PROXY=http://gluetun:8888
-      - HTTPS_PROXY=http://gluetun:8888
-      - NO_PROXY=localhost,127.0.0.1,byparr,gluetun,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
       - FLARESOLVERR_URL=http://byparr:8191/v1
     volumes:
       - /home/stash/app/stash/pip:/pip-install:rw
@@ -81,7 +80,7 @@ services:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
-    env_file: "gluetun.env" # needs FIREWALL_INPUT_PORTS=9222, see gluetun.env.example
+    env_file: "gluetun.env" # needs FIREWALL_INPUT_PORTS=9222,9990, see gluetun.env.example
     networks:
       gluetun_net:
         ipv4_address: 172.30.0.10
