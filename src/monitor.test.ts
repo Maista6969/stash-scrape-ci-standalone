@@ -83,11 +83,13 @@ test("coverage counts URLs and reached domains per package", () => {
     { url: "https://www.a.com/x", scraperId: "Net" },
     { url: "https://a.com/y", scraperId: "Net" },
     { url: "https://b.com/z", scraperId: "Net" },
+    { url: "https://tour.c.com/w", scraperId: "Net" },
+    { url: "https://notlone.com/1", scraperId: "Lone" },
     { url: "https://lone.com/1", scraperId: "Other" },
   ]
   assert.deepEqual(coverage(scrapers, urls), [
-    { scraperId: "Net", names: ["Net A", "Net B"], hosts: 3, coveredHosts: 2, urls: 3 },
-    { scraperId: "Lone", names: ["Lone"], hosts: 1, coveredHosts: 0, urls: 0 },
+    { scraperId: "Net", names: ["Net A", "Net B"], hosts: 3, coveredHosts: 3, urls: 4 },
+    { scraperId: "Lone", names: ["Lone"], hosts: 1, coveredHosts: 0, urls: 1 },
   ])
 })
 

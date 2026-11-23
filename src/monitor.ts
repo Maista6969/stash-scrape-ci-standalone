@@ -123,8 +123,10 @@ export const coverage = (
   }
   return [...packages].map(([scraperId, { names, hosts }]) => {
     const own = urls.filter(u => u.scraperId === scraperId)
-    const reached = new Set(own.map(u => bareHost(new URL(u.url).hostname)))
-    return { scraperId, names, hosts: hosts.size, coveredHosts: [...hosts].filter(h => reached.has(h)).length, urls: own.length }
+    const reached = own.map(u => bareHost(new URL(u.url).hostname))
+    // patterns are often bare domains while the URLs sit on tour.* or members.* subdomains
+    const covered = [...hosts].filter(h => reached.some(r => r === h || r.endsWith(`.${h}`)))
+    return { scraperId, names, hosts: hosts.size, coveredHosts: covered.length, urls: own.length }
   })
 }
 
