@@ -9,6 +9,10 @@ export const presentFields = (result: Record<string, unknown> | null | undefined
     .map(([k]) => k)
     .sort()
 
+// a result with three fields or fewer counts as blank: a hard-coded studio, an og:title or a date
+// survive any redesign, so they are no evidence that the scraper still works
+export const MIN_FIELDS = 4
+
 // missing: fields this URL's own baseline had (a regression). suspect: fields every sibling URL of
 // its scraper returns but this one never has, e.g. a field already broken when this URL's baseline
 // formed; only a hint, since a scene can genuinely lack a field, so accepted ones are ignored
@@ -22,9 +26,9 @@ export const classify = (
   if (latest.pending) return { status: "running", missing: [], suspect: [] }
   if (latest.error) return { status: "error", missing: [], suspect: [] }
   const present = presentFields(latest.result)
-  // Stash reports a scrape that found nothing as a success
-  if (!present.length) return { status: "error", missing: baseline ?? [], suspect: [] }
   const missing = (baseline ?? []).filter(f => !present.includes(f))
+  // Stash reports a scrape that found nothing, or next to nothing, as a success
+  if (present.length < MIN_FIELDS) return { status: "error", missing, suspect: [] }
   const suspect = siblings.filter(f => !present.includes(f) && !baseline?.includes(f) && !accepted.includes(f))
   return { status: missing.length ? "regressed" : suspect.length ? "suspect" : "ok", missing, suspect }
 }
@@ -47,7 +51,7 @@ export const siblingFields = (siblingBaselines: (string[] | null)[]): string[] =
 // flagged until it comes back or the URL is removed and re-added
 export const nextBaseline = (baseline: string[] | null, result: Record<string, unknown> | null | undefined): string[] | null => {
   const present = presentFields(result)
-  if (!present.length) return baseline
+  if (present.length < MIN_FIELDS) return baseline
   return (baseline ?? []).every(f => present.includes(f)) ? present : baseline
 }
 

@@ -333,6 +333,8 @@
         }
         if (u.latest?.error) {
           statusCell.append(el("div", { className: "small text-danger text-truncate", style: "max-width: 260px", title: u.latest.error, textContent: u.latest.error }));
+        } else if (u.status === "error") {
+          statusCell.append(el("div", { className: "small text-danger", textContent: "fewer than 4 fields returned" }));
         }
         // Stash dispatches overlapping URL patterns randomly, so a different scraper may have answered
         if (u.latest?.scraperId && u.latest.scraperId !== u.scraperId) {
