@@ -57,7 +57,7 @@ services:
     # sends its browser TLS hello on direct connections, behind a proxy it falls back to Go's TLS
     network_mode: "service:gluetun"
     environment:
-      - FLARESOLVERR_URL=http://byparr:8191/v1
+      - FLARESOLVERR_URL=http://127.0.0.1:8191/v1 # byparr shares the same namespace
     volumes:
       - /home/stash/app/stash/pip:/pip-install:rw
       - /home/stash/app/stash/config:/config:rw
@@ -115,6 +115,9 @@ services:
     container_name: byparr
     image: ghcr.io/thephaseless/byparr:latest
     read_only: false
+    # same namespace as stash so its browser exits via the VPN and the cf_clearance cookie it
+    # hands back is bound to the IP the Python scrapers reuse it from
+    network_mode: "service:gluetun"
     shm_size: 512m # same silent-crash risk as cdp - byparr also drives a headless browser
     volumes:
       - /home/stash/app/byparr:/var/cache/uv:rw
