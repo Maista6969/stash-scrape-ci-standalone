@@ -173,11 +173,15 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
 // which scene-by-URL scrapers in the repo have no monitored URLs yet, and which of those can be imported
 router.get("/api/admin/monitor/coverage", koaValidateAdmin, async (ctx) => {
   const [index, urls, overviews, excluded] = await Promise.all([fetchScraperIndex(), listMonitorUrls(), fetchOverviewIds(), listExcludedScrapers()])
-  // patterns are mostly bare "host/path", a few carry a scheme
-  const hostOf = (pattern: string) => new URL(pattern.includes("://") ? pattern : `https://${pattern}`).hostname
+  // patterns are mostly bare "host/path", a few carry a scheme; a malformed one (seen: a leading "/")
+  // can't match any URL, so it is left out rather than failing the whole view
+  const hostOf = (pattern: string): string | null => {
+    const url = pattern.includes("://") ? pattern : `https://${pattern}`
+    return URL.canParse(url) ? new URL(url).hostname : null
+  }
   const scrapers = index
     .filter(s => s.sites.length)
-    .map(s => ({ scraperId: s.id, name: s.name, hosts: s.sites.map(hostOf) }))
+    .map(s => ({ scraperId: s.id, name: s.name, hosts: s.sites.map(hostOf).filter((h): h is string => h !== null) }))
   ctx.body = coverage(scrapers, urls).map(pkg => ({ ...pkg, overview: overviews.has(pkg.scraperId), excluded: excluded.includes(pkg.scraperId) }))
 })
 
