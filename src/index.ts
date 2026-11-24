@@ -173,8 +173,8 @@ router.get("/api/admin/monitor", koaValidateAdmin, async (ctx) => {
 // which scene-by-URL scrapers in the repo have no monitored URLs yet, and which of those can be imported
 router.get("/api/admin/monitor/coverage", koaValidateAdmin, async (ctx) => {
   const [index, urls, overviews, excluded] = await Promise.all([fetchScraperIndex(), listMonitorUrls(), fetchOverviewIds(), listExcludedScrapers()])
-  // patterns are mostly bare "host/path", a few carry a scheme; a malformed one (seen: a leading "/")
-  // can't match any URL, so it is left out rather than failing the whole view
+  // patterns are mostly bare "host/path", a few carry a scheme; Wayback Machine patterns like
+  // "/http://site/..." have no host of their own and are left out rather than failing the view
   const hostOf = (pattern: string): string | null => {
     const url = pattern.includes("://") ? pattern : `https://${pattern}`
     return URL.canParse(url) ? new URL(url).hostname : null
